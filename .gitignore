@@ -1,0 +1,13 @@
+*.jar
+*.ipynb
+*.json
+*.csv
+*.zip
+
+target/
+/test_api/
+.classpath
+.project
+.settings
+.mypy_cache
+.vscode
