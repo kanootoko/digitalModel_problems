@@ -109,6 +109,13 @@ public class Problem {
     }
 
     @SuppressWarnings("unchecked")
+    public JSONObject getLinks() {
+        JSONObject res = new JSONObject();
+        res.put("self", "/problem/" + id);
+        return res;
+    }
+
+    @SuppressWarnings("unchecked")
     public JSONObject toJSON() {
         JSONObject res = new JSONObject();
         res.put("id", id);
@@ -127,9 +134,8 @@ public class Problem {
         res.put("reason", reason);
         res.put("category", category);
         res.put("subcategory", subcategory);
-        
-        res.put("_links", new JSONObject());
-        ((JSONObject) res.get("_links")).put("self", "/problem/" + id);
+
+        res.put("_links", getLinks());
         return res;
     }
 

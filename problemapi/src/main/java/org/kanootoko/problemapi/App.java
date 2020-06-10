@@ -55,9 +55,11 @@ public class App {
         ConnectionManager.setDB_pass(db_pass);
 
         Spark.port(port_number);
-        Spark.get("/", (req, res) -> "<html><body><a href=\"/getProblems\">GetProblems API</a><br/><a href=/getGroups>getGroups API</a></body></html>");
-        Spark.get("/getGroups", (req, res) -> "<html><body>Most needed variants: /status , /category , /subcategory</body></html>");
-        Spark.get("/getProblems", (req, res) -> {
+
+        Spark.get("/", (req, res) -> "<html><body><a href=\"/problems/search\">Search problems API</a><br/><a href=/groups>Get groups API</a></body></html>");
+        Spark.get("/groups", (req, res) -> "<html><body>Most needed variants: /status , /category , /subcategory</body></html>");
+
+        Spark.get("/problems/search", (req, res) -> {
             String minDateStr, maxDateStr;
             String firstCoordStr, secondCoordStr;
             ProblemFilter pf = new ProblemFilter();
@@ -86,7 +88,7 @@ public class App {
                 return "<html>" +
                     "<body>" +
                         "<h1>No parameters are given</h1>" +
-                        "<p>Use this endpoint with <b>minDate</b> and <b>maxDate</b>, " +
+                        "<p>Use this endpoint with <b>minDate</b> and/or <b>maxDate</b>, " +
                         "<b>firstPoint</b> and <b>secondPoint</b>, <b>status</b>, <b>category</b>," +
                         "<b>subcategory</b> parameters</p>" +
                         "<p>For points use format \"longitude,latitude\", for dates - \"YYYY-MM-DD\"</p>" +
@@ -123,7 +125,19 @@ public class App {
             result.put("problems_number", problems.size());
             JSONArray problemsArray = new JSONArray();
             for (Problem p : problems) {
-                problemsArray.add(p.toJSON());
+                String description = p.getDescription();
+                if (p.getName().length() < description.length()) {
+                    description = p.getName();
+                }
+                if (p.getReason().length() < description.length()) {
+                    description = p.getReason();
+                }
+                JSONObject problem = new JSONObject();
+                problem.put("description", description);
+                problem.put("coordinates", p.getCoordinates().toJSONArray());
+                problem.put("status", p.getStatus());
+                problem.put("_links", p.getLinks());
+                problemsArray.add(problem);
             }
             result.put("problems", problemsArray);
             return result.toJSONString();
@@ -133,9 +147,10 @@ public class App {
             ProblemService ps = ServiceFactory.getPorblemService();
             JSONObject result = new JSONObject();
             result.put("problem", ps.getProblemByID(problemID).toJSON());
+            res.type("application/hal+json");
             return result.toJSONString();
         });
-        Spark.get("/getGroups/:labelName", (req, res) -> {
+        Spark.get("/groups/:labelName", (req, res) -> {
             ProblemService ps = ServiceFactory.getPorblemService();
             JSONObject result = new JSONObject();
             Map<String, Integer> groups = ps.getGroupsSize(req.params(":labelName"));

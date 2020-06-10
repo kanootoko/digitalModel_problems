@@ -9,7 +9,16 @@ public class ConnectionManager {
     private static String db_string = "jdbc:postgresql://127.0.0.1:5432/problems", db_user = "postgres", db_pass = "postgres";
 
     public static Connection getConnection() {
+        boolean newConnectionNeeded = false;
         if (conn == null) {
+            newConnectionNeeded = true;
+        } else {
+            try {
+                newConnectionNeeded = conn.isClosed();
+            } catch (SQLException e) {
+            }
+        }
+        if (newConnectionNeeded) {
             try {
                 conn = DriverManager.getConnection(db_string, db_user, db_pass);
             } catch (SQLException e) {

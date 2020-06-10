@@ -90,11 +90,11 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
 
     @Override
     public Problem findProblemByID(int problemID) {
-        try (Connection conn = ConnectionManager.getConnection()) {
-            ResultSet rs = conn.createStatement().executeQuery(
-                    "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_X(Coordinates),"
-                            + " ST_Y(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems where id = "
-                            + problemID);
+        Connection conn = ConnectionManager.getConnection();
+        try (ResultSet rs = conn.createStatement().executeQuery(
+                "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_X(Coordinates),"
+                        + " ST_Y(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems where id = "
+                        + problemID)) {
             if (rs.next()) {
                 return new Problem(rs.getInt(1), rs.getInt(2), rs.getString(3), rs.getString(4), rs.getString(5),
                         rs.getDate(6).toLocalDate(), rs.getDate(7).toLocalDate(), rs.getString(8), rs.getString(9),
