@@ -3,6 +3,7 @@
 *.json
 *.csv
 *.zip
+*.tar
 
 target/
 /test_api/
