@@ -96,10 +96,6 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--csv_path', action='store', dest='path_to_csv', help='full path to csv file with problems [default: problems_export_2020-05-27.csv]', type=str, default='problems_export_2020-05-27.csv')
     args = parser.parse_args()
 
-    if args.help:
-        print(parser.print_help())
-        exit(0)
-
     print('Connecting to the database')
     conn = psycopg2.connect(f'host={args.host} port={args.port} dbname={args.database} user={args.user} password={args.password}')
     cur = conn.cursor()

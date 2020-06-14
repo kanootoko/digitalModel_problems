@@ -29,7 +29,7 @@ After the launch you can find api avaliable at localhost:port/ .
 At this moment there are 3 endpoints:
 
 * **/problems/search** : takes parameters by query or inside the body as JSON. You can set _minDate_ and/or _maxDate_
-  in format `YYYY-MM-DD`, _status_, _firstCoord_ and _secondCoord_ in format `longitude,latitude`, _category_, _subcategory_.  
+  in format `YYYY-MM-DD`, _status_, _firstCoord_ and _secondCoord_ in format `longitude,latitude`, _category_, _subcategory_, _limit_.  
   Returns list of problems descriptions, coordinates and statuses corresponding to request, limited by 100000 by default.
   Also each of the entities has their link to get full information.
 * **/problem/:problemID** : returns single problem information.

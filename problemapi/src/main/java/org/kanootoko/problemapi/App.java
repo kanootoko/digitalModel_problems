@@ -73,6 +73,9 @@ public class App {
                 pf.setCategory((String) requestBody.get("category"));
                 pf.setSubcategory((String) requestBody.get("subcategory"));
                 pf.setStatus((String) requestBody.get("status"));
+                if (requestBody.containsKey("limit")) {
+                    pf.setLimit(Integer.parseInt((String) requestBody.get("limit")));
+                }
             } else if (!req.queryParams().isEmpty()) {
                 System.out.println("GET /problems: request query: " + req.queryString());
                 minDateStr = req.queryParams("minDate");
@@ -82,6 +85,9 @@ public class App {
                 pf.setCategory((String) req.queryParams("category"));
                 pf.setSubcategory((String) req.queryParams("subcategory"));
                 pf.setStatus((String) req.queryParams("status"));
+                if (req.queryParams("limit") != null) {
+                    pf.setLimit(Integer.parseInt(req.queryParams("limit")));
+                }
             } else {
                 System.out.println("GET /problems: No query or body params");
                 res.type("text/html");
@@ -90,8 +96,9 @@ public class App {
                         "<h1>No parameters are given</h1>" +
                         "<p>Use this endpoint with <b>minDate</b> and/or <b>maxDate</b>, " +
                         "<b>firstPoint</b> and <b>secondPoint</b>, <b>status</b>, <b>category</b>," +
-                        "<b>subcategory</b> parameters</p>" +
+                        "<b>subcategory</b>, <b>limit</b> parameters</p>" +
                         "<p>For points use format \"longitude,latitude\", for dates - \"YYYY-MM-DD\"</p>" +
+                        "<p>The result will be a list of problems, coordinates in format [latitude, longitude] (!)</p>" +
                     "</body>" +
                 "</html>";
             }

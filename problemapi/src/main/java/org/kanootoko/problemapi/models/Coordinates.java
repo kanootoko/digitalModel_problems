@@ -30,8 +30,8 @@ public class Coordinates {
     @SuppressWarnings("unchecked")
     public JSONArray toJSONArray() {
         JSONArray res = new JSONArray();
-        res.add(longitude);
         res.add(latitude);
+        res.add(longitude);
         return res;
     }
 
