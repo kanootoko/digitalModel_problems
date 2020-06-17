@@ -50,8 +50,8 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
         PreparedStatement statement;
         try {
             statement = conn.prepareStatement(
-                    "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_X(Coordinates),"
-                            + " ST_Y(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems"
+                    "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_Y(Coordinates),"
+                            + " ST_X(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems"
                             + pf.buildWhereString());
             // System.out.println(
             // "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate,
@@ -92,8 +92,8 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
     public Problem findProblemByID(int problemID) {
         Connection conn = ConnectionManager.getConnection();
         try (ResultSet rs = conn.createStatement().executeQuery(
-                "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_X(Coordinates),"
-                        + " ST_Y(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems where id = "
+                "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_Y(Coordinates),"
+                        + " ST_X(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems where id = "
                         + problemID)) {
             if (rs.next()) {
                 return new Problem(rs.getInt(1), rs.getInt(2), rs.getString(3), rs.getString(4), rs.getString(5),

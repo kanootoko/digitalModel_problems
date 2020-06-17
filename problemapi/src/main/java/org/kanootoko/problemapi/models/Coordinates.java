@@ -4,26 +4,27 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 public class Coordinates {
-    private double longitude;
     private double latitude;
-    public Coordinates(double longitude, double latitude) {
-        this.longitude = longitude;
-        this.latitude = latitude;
-    }
+    private double longitude;
 
-    public double getLongitude() {
-        return longitude;
+    public Coordinates(double latitude, double longitude) {
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public double getLatitude() {
         return latitude;
     }
 
+    public double getLongitude() {
+        return longitude;
+    }
+
     @SuppressWarnings("unchecked")
     public JSONObject toJSON() {
         JSONObject res = new JSONObject();
-        res.put("longitude", longitude);
         res.put("latitude", latitude);
+        res.put("longitude", longitude);
         return res;
     }
 
@@ -37,6 +38,6 @@ public class Coordinates {
 
     @Override
     public String toString() {
-        return String.format("Coordinates{longitude: %.2f, latitude: %.2f}", longitude, latitude);
+        return String.format("Coordinates{latitude: %.2f, longitude: %.2f}", longitude, latitude);
     }
 }

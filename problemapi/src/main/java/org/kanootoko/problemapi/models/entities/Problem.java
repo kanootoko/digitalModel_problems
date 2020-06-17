@@ -111,7 +111,7 @@ public class Problem {
     @SuppressWarnings("unchecked")
     public JSONObject getLinks() {
         JSONObject res = new JSONObject();
-        res.put("self", "/problem/" + id);
+        res.put("self", "/problems/" + id);
         return res;
     }
 
