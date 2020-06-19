@@ -1,7 +1,0 @@
-FROM python:3.6
-RUN pip install pandas psycopg2
-# RUN mkdir /docker-entrypoint-initdb.d
-# RUN echo "CREATE DATABASE problems;" > /docker-entrypoint-initdb.d/init.sql
-RUN mkdir /csv
-COPY problems_export_2020-05-27.csv /csv
-COPY insert_to_db.py /insert_to_db.py

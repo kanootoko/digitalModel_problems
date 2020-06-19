@@ -171,7 +171,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--min_outer_id', action='store', dest='min_outer_id',
                         help='minimal OuterID to insert, only used with -g, cuts of connection to DB', type=int, default=None)
     parser.add_argument('-s', '--insert_size', action='store', dest='insert_size',
-                        help='number of values per one insertm only used with -g', type=int, default=None)
+                        help='number of values per one insert, only used with -g', type=int, default=None)
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose',
                         help=f'output progress (every {_VERBOSE_NUMBER} entities)')
     args = parser.parse_args()

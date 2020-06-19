@@ -4,8 +4,11 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.cli.*;
-
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -118,18 +121,43 @@ public class App {
 
         Spark.before((request, response) -> response.header("Access-Control-Allow-Origin", "*"));
 
-        Spark.get("/", (req, res) -> "<html><body><h1>Problems API version 2020.06.17</h1><br/>"
-                + "<a href=\"/problems/search\">Search problems API</a><br/><a href=/groups>Get groups API</a></body></html>");
-        Spark.get("/groups",
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-06-19</h1>"
+                + "<p>Set Accept header to include json or hal+json, and you will get api description in HAL format from this page</p>"
+                + "<a href=\"/api/problems/search\">Search problems API</a><br/><a href=/api/groups>Get groups API</a></body></html>");
+        Spark.get("/api", (req, res) -> {
+            JSONObject result = new JSONObject();
+            result.put("version", "2020-06-19");
+            JSONObject links = new JSONObject();
+            links.put("self", "/api");
+            links.put("problems-search", new JSONObject());
+            ((JSONObject) links.get("problems-search")).put("href", "/api/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,status,limit}");
+            ((JSONObject) links.get("problems-search")).put("templated", true);
+            links.put("categories", new JSONObject());
+            ((JSONObject) links.get("categories")).put("href", "/api/groups/category");
+            links.put("subcategories", new JSONObject());
+            ((JSONObject) links.get("subcategories")).put("href", "/api/groups/subcategory");
+            links.put("statuses", new JSONObject());
+            ((JSONObject) links.get("statuses")).put("href", "/api/groups/status");
+            result.put("_links", links);
+            res.type("application/hal+json");
+            return result.toJSONString();
+        });
+
+        Spark.get("/", "application/json", (req, res) -> {
+            res.redirect("/api", 303);
+            return "OK";
+        });
+
+        Spark.get("/api/groups",
                 (req, res) -> "<html><body>Most needed variants: /status , /category , /subcategory</body></html>");
 
-        Spark.get("/problems/search", (req, res) -> {
+        Spark.get("/api/problems/search", (req, res) -> {
             String minDateStr, maxDateStr;
             String firstCoordStr, secondCoordStr;
             ProblemFilter pf = new ProblemFilter();
             if (!req.body().isEmpty()) {
                 JSONObject requestBody = (JSONObject) new JSONParser().parse(req.body());
-                System.out.println("GET /problems: RequestBody: " + requestBody);
+                System.out.println("GET /api/problems: RequestBody: " + requestBody);
                 minDateStr = (String) requestBody.get("minDate");
                 maxDateStr = (String) requestBody.get("maxDate");
                 firstCoordStr = (String) requestBody.get("firstCoord");
@@ -141,7 +169,7 @@ public class App {
                     pf.setLimit(Integer.parseInt((String) requestBody.get("limit")));
                 }
             } else if (!req.queryParams().isEmpty()) {
-                System.out.println("GET /problems: request query: " + req.queryString());
+                System.out.println("GET /api/problems: request query: " + req.queryString());
                 minDateStr = req.queryParams("minDate");
                 maxDateStr = req.queryParams("maxDate");
                 firstCoordStr = (String) req.queryParams("firstCoord");
@@ -153,7 +181,7 @@ public class App {
                     pf.setLimit(Integer.parseInt(req.queryParams("limit")));
                 }
             } else {
-                System.out.println("GET /problems: No query or body params");
+                System.out.println("GET /api/problems: No query or body params");
                 res.type("text/html");
                 return "<html>" + "<body>" + "<h1>No parameters are given</h1>"
                         + "<p>Use this endpoint with <b>minDate</b> and/or <b>maxDate</b>, "
@@ -191,11 +219,11 @@ public class App {
 
             ProblemService ps = ServiceFactory.getPorblemService();
             List<Problem> problems = ps.getProblemsByFilter(pf);
-            res.type("application/hal+json");
             JSONObject result = new JSONObject();
             result.put("_links", new JSONObject());
-            ((JSONObject) result.get("_links")).put("self", "/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,status,limit}");
-            result.put("problems_number", problems.size());
+            ((JSONObject) result.get("_links")).put("self", new JSONObject());
+            ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put("href", req.uri() + "?" + req.queryString());
+            result.put("size", problems.size());
             JSONArray problemsArray = new JSONArray();
             for (Problem p : problems) {
                 String description = p.getDescription();
@@ -212,23 +240,29 @@ public class App {
                 problem.put("_links", p.getLinks());
                 problemsArray.add(problem);
             }
-            result.put("problems", problemsArray);
-            return result.toJSONString();
-        });
-        Spark.get("/problems/:problemID", (req, res) -> {
-            int problemID = Integer.parseInt(req.params(":problemID"));
-            ProblemService ps = ServiceFactory.getPorblemService();
-            JSONObject result = new JSONObject();
-            result.put("problem", ps.getProblemByID(problemID).toJSON());
+            result.put("_embedded", new JSONObject());
+            ((JSONObject) result.get("_embedded")).put("problems", problemsArray);
             res.type("application/hal+json");
             return result.toJSONString();
         });
-        Spark.get("/groups/:labelName", (req, res) -> {
+        Spark.get("/api/problems/:problemID", (req, res) -> {
+            int problemID = Integer.parseInt(req.params(":problemID"));
             ProblemService ps = ServiceFactory.getPorblemService();
+            Problem problem = ps.getProblemByID(problemID);
             JSONObject result = new JSONObject();
+            result.put("_links", problem.getLinks());
+            result.put("_embedded", problem.toJSON());
+            res.type("application/hal+json");
+            return result.toJSONString();
+        });
+        Spark.get("/api/groups/:labelName", (req, res) -> {
+            ProblemService ps = ServiceFactory.getPorblemService();
             Map<String, Integer> groups = ps.getGroupsSize(req.params(":labelName"));
-            result.put("label_name", req.params(":labelName"));
-            result.put("groups_number", groups.size());
+            JSONObject result = new JSONObject();
+            result.put("_links", new JSONObject());
+            ((JSONObject) result.get("_links")).put("self", new JSONObject());
+            ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put("href", req.uri());
+            result.put("size", groups.size());
             JSONArray groupsArray = new JSONArray();
             for (Map.Entry<String, Integer> el : groups.entrySet()) {
                 JSONObject group = new JSONObject();
@@ -236,7 +270,8 @@ public class App {
                 group.put("size", el.getValue());
                 groupsArray.add(group);
             }
-            result.put("groups", groupsArray);
+            result.put("_embedded", new JSONObject());
+            ((JSONObject) result.get("_embedded")).put("groups", groupsArray);
             res.type("application/hal+json");
             return result.toJSONString();
         });
