@@ -1,4 +1,4 @@
-FROM openjdk:8
+FROM openjdk:8-jre-alpine
 COPY ./target/problemapi-2020-06-19-jar-with-dependencies.jar /app.jar
 EXPOSE 8080
 ENTRYPOINT [ "java",  "-jar", "/app.jar" ]

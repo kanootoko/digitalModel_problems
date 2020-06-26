@@ -6,9 +6,9 @@ This is API server for getting probelms from postgres database based on data fro
 
 ## Launching
 
-1. Install Postgres database and postgis extension
-2. Fill the database by data with the script
-3. Clone this repository
+1. install Postgres database and postgis extension
+2. fill the database by data with the script
+3. clone this repository
 4. compile with `mvn compile assembly:single`
 5. launch with `java -jar target/problemapi-2020-06-19-jar-with-dependencies.jar`
 
@@ -36,18 +36,22 @@ The same parameters can be configured with environment variables:
 
 1. open terminal in cloned repository
 2. build image with `docker build --tag problems_api:2020-06-19 .`
-3. run image with `docker run --net=host -e PROBLEMS_API_PORT=8080 --name problems_api problems_api:2020-06-19`
+3. run image with postgres server running on host machine on default port 5432
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api problems_api:2020-06-19`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api problems_api:2020-06-19`  
+       Ensure that:
+        1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
+        2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)
+        3. command `ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1` returns ip address
+       If config files are not found, `sudo -u postgres psql -c 'SHOW config_file'` should say where they are
 
-The third command works only on Linux hosts, it runs the container within the host network-space, so you can easily configure database settings
-  if it is working on localhost by passing enviroment variables. If you decide to work with database running on other Docker container or find a way for a container to
-  connect to your database wherever it is withous using `--net=host`, you need to replace third command with something like
-  `docker run --publish 8080:80 -e PROBLEMS_DB_ADDR=... -e PROBLEMS_DB_PORT=... --name problems_api problems_api:2020-06-19`.
-  In both variants service will be avaliable at port 8080 on localhost.  
-At this point you can only know that database connection failed (and the reason why) when request is performed, for example _/problems/search?limit=10_
+    Ensure that you configured user and password for database.
+
+At this point you can only know that database connection failed (and the reason why) when connection is performed, for example after GET on _/problems/search?limit=10_
 
 ## Usage
 
-After the launch you can find api avaliable at localhost:port/ .
+After the launch you can find api avaliable at localhost:port/ . In example given it will be localhost with port 80 when launched without Docker and localhost:8080 with Docker
 
 ### Endpoints
 
