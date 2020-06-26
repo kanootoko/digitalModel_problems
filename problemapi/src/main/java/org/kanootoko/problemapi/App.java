@@ -121,12 +121,12 @@ public class App {
 
         Spark.before((request, response) -> response.header("Access-Control-Allow-Origin", "*"));
 
-        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-06-19</h1>"
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-06-26</h1>"
                 + "<p>Set Accept header to include json or hal+json, and you will get api description in HAL format from this page</p>"
                 + "<a href=\"/api/problems/search\">Search problems API</a><br/><a href=/api/groups>Get groups API</a></body></html>");
         Spark.get("/api", (req, res) -> {
             JSONObject result = new JSONObject();
-            result.put("version", "2020-06-19");
+            result.put("version", "2020-06-26");
             JSONObject links = new JSONObject();
             links.put("self", "/api");
             links.put("problems-search", new JSONObject());
@@ -237,6 +237,7 @@ public class App {
                 problem.put("description", description);
                 problem.put("coordinates", p.getCoordinates().toJSONArray());
                 problem.put("status", p.getStatus());
+                problem.put("creationDate", p.getCreationDate().toString());
                 problem.put("_links", p.getLinks());
                 problemsArray.add(problem);
             }

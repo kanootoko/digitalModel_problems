@@ -10,7 +10,7 @@ This is API server for getting probelms from postgres database based on data fro
 2. fill the database by data with the script
 3. clone this repository
 4. compile with `mvn compile assembly:single`
-5. launch with `java -jar target/problemapi-2020-06-19-jar-with-dependencies.jar`
+5. launch with `java -jar target/problemapi-2020-06-26-jar-with-dependencies.jar`
 
 ## CLI Parameters
 
@@ -35,10 +35,10 @@ The same parameters can be configured with environment variables:
 ## Packing in Docker
 
 1. open terminal in cloned repository
-2. build image with `docker build --tag problems_api:2020-06-19 .`
+2. build image with `docker build --tag problems_api:2020-06-26 .`
 3. run image with postgres server running on host machine on default port 5432
-    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api problems_api:2020-06-19`
-    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api problems_api:2020-06-19`  
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api problems_api:2020-06-26`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api problems_api:2020-06-26`  
        Ensure that:
         1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
         2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)
@@ -119,6 +119,7 @@ Format:
                 },
                 "coordinates": [":latitude",":longitude"],
                 "description": ":description",
+                "creationDate": ":creationDate",
                 "status": ":status"
             }, <...>
         ]
@@ -131,6 +132,7 @@ Formats:
 * :problems_number, :problemID - integer
 * :latitude, :longitude - double
 * :description, :status - string
+* :creationDate - string representing date in format "YYYY-MM-DD"
 
 #### /api/problems/:problemID
 
