@@ -78,7 +78,7 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
         Map<String, Integer> res = new HashMap<>();
         Connection conn = ConnectionManager.getConnection();
         try (ResultSet rs = conn.createStatement()
-                .executeQuery(String.format("select %s, count(*) from problems group by %s", labelName, labelName))) {
+                .executeQuery(String.format("select %s, count(*) from problems where municipality not like '%%(искл.)' group by %s", labelName, labelName))) {
             while (rs.next()) {
                 res.put(rs.getString(1), rs.getInt(2));
             }

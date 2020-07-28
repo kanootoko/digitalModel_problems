@@ -8,7 +8,7 @@ import org.kanootoko.problemapi.models.Coordinates;
 public class ProblemFilter {
     public static final int LIMIT_DEFAULT = 100000;
 
-    private String status, category, subcategory;
+    private String status, category, subcategory, municipality, region;
     private Coordinates firstCoord, secondCoord;
     private LocalDate minCreationDate, maxCreationDate;
     int limit;
@@ -17,6 +17,8 @@ public class ProblemFilter {
         status = null;
         category = null;
         subcategory = null;
+        municipality = null;
+        region = null;
         firstCoord = null;
         secondCoord = null;
         minCreationDate = null;
@@ -36,6 +38,16 @@ public class ProblemFilter {
 
     public ProblemFilter setSubcategory(String subcategory) {
         this.subcategory = subcategory;
+        return this;
+    }
+
+    public ProblemFilter setMunicipality(String municipality) {
+        this.municipality = municipality;
+        return this;
+    }
+
+    public ProblemFilter setRegion(String region) {
+        this.region = region;
         return this;
     }
 
@@ -75,6 +87,14 @@ public class ProblemFilter {
         return subcategory;
     }
 
+    public String getMunicipality() {
+        return municipality;
+    }
+
+    public String getRegion() {
+        return region;
+    }
+
     public Coordinates getFirstCoord() {
         return firstCoord;
     }
@@ -108,15 +128,12 @@ public class ProblemFilter {
         sb.append(" ");
         sb.append(operator);
         sb.append(" (?)");
-        // sb.append(" '");
-        // sb.append(paramValue);
-        // sb.append("'");
         return count + 1;
     }
 
     public boolean isNulled() {
         return status == null && category == null && subcategory == null && firstCoord == null && secondCoord == null
-                && minCreationDate == null && maxCreationDate == null;
+                && minCreationDate == null && maxCreationDate == null && municipality == null && region == null;
     }
 
     public boolean isDefault() {
@@ -132,6 +149,8 @@ public class ProblemFilter {
         count = addArgument(count, sb, "status", "=", status);
         count = addArgument(count, sb, "category", "=", category);
         count = addArgument(count, sb, "subcategory", "=", subcategory);
+        count = addArgument(count, sb, "municipality", "=", municipality);
+        count = addArgument(count, sb, "region", "=", region);
         if (firstCoord != null && secondCoord != null) {
             if (count == 0) {
                 sb.append(" ");
@@ -147,7 +166,13 @@ public class ProblemFilter {
                     firstCoord.getLatitude()));
         }
         count = addArgument(count, sb, "CreationDate", ">=", minCreationDate);
-        addArgument(count, sb, "CreationDate", "<=", maxCreationDate);
+        count = addArgument(count, sb, "CreationDate", "<=", maxCreationDate);
+        if (count == 0) {
+            sb.append(" ");
+        } else {
+            sb.append(" and ");
+        }
+        sb.append("municipality not like '%%(искл.)'");
         sb.append(" limit ");
         sb.append(limit);
         return sb.toString();
@@ -166,6 +191,14 @@ public class ProblemFilter {
             }
             if (subcategory != null) {
                 statement.setString(k, subcategory);
+                k++;
+            }
+            if (municipality != null) {
+                statement.setString(k, municipality);
+                k++;
+            }
+            if (region != null) {
+                statement.setString(k, region);
                 k++;
             }
             if (minCreationDate != null) {

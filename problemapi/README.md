@@ -10,7 +10,7 @@ This is API server for getting probelms from postgres database based on data fro
 2. fill the database by data with the script
 3. clone this repository
 4. compile with `mvn compile assembly:single`
-5. launch with `java -jar target/problemapi-2020-06-26-jar-with-dependencies.jar`
+5. launch with `java -jar target/problemapi-2020-07-28-jar-with-dependencies.jar`
 
 ## CLI Parameters
 
@@ -35,10 +35,10 @@ The same parameters can be configured with environment variables:
 ## Packing in Docker
 
 1. open terminal in cloned repository
-2. build image with `docker build --tag problems_api:2020-06-26 .`
+2. build image with `docker build --tag problems_api:2020-07-28 .`
 3. run image with postgres server running on host machine on default port 5432
-    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api problems_api:2020-06-26`
-    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api problems_api:2020-06-26`  
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api problems_api:2020-07-28`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api problems_api:2020-07-28`  
        Ensure that:
         1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
         2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)
@@ -76,9 +76,12 @@ Also with no parameters URIs {/, /api, /api/groups and /api/problems/search} wil
 ```json
 {
     "_links": {
+        "regions": {
+            "href": "/api/groups/region"
+        },
         "problems-search": {
             "templated": true,
-            "href": "/api/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,status,limit}"
+            "href": "/api/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,municipality,region,status,limit}"
         },
         "self": "/api",
         "statuses": {
@@ -89,6 +92,9 @@ Also with no parameters URIs {/, /api, /api/groups and /api/problems/search} wil
         },
         "subcategories": {
             "href": "/api/groups/subcategory"
+        },
+        "munitipalities": {
+            "href": "/api/groups/municipality"
         }
     },
     "version": ":version"
@@ -179,22 +185,22 @@ Formats:
 
 #### /api/groups/:labelName
 
-:labelName should be one of the ("status", "category", "subcategory"), but technicaly "region", "municipality" and
-  "address" have meaning too. Getting groups of other database labels is possible, but not recommended
+:labelName should be one of the ("status", "category", "subcategory", "municipality", "region").
+  Getting groups of other database labels is possible, but not recommended
 
 ```json
 {
-    "size": 8,
+    "size": ":groups_number",
     "_links": {
         "self": {
-            "href": "/api/groups/status"
+            "href": "/api/groups/:name"
         }
     },
     "_embedded": {
         "groups": [
             {
                 "size": ":groupSize",
-                "name": ":name"
+                "name": ":groupName"
             }, <...>
         ]
     }
@@ -203,5 +209,5 @@ Formats:
 
 Formats:
 
-* :size, :groupSize - integer
-* :name - string
+* :groups_number, :groupSize - integer
+* :name, groupName - string

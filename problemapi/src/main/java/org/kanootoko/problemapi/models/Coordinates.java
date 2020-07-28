@@ -23,21 +23,21 @@ public class Coordinates {
     @SuppressWarnings("unchecked")
     public JSONObject toJSON() {
         JSONObject res = new JSONObject();
-        res.put("latitude", latitude);
-        res.put("longitude", longitude);
+        res.put("latitude", java.lang.Math.round(latitude * 10000) / 10000.0);
+        res.put("longitude", java.lang.Math.round(longitude * 10000) / 10000.0);
         return res;
     }
 
     @SuppressWarnings("unchecked")
     public JSONArray toJSONArray() {
         JSONArray res = new JSONArray();
-        res.add(latitude);
-        res.add(longitude);
+        res.add(java.lang.Math.round(latitude * 10000) / 10000.0);
+        res.add(java.lang.Math.round(longitude * 10000) / 10000.0);
         return res;
     }
 
     @Override
     public String toString() {
-        return String.format("Coordinates{latitude: %.2f, longitude: %.2f}", longitude, latitude);
+        return String.format("Coordinates{latitude: %.4f, longitude: %.4f}", longitude, latitude);
     }
 }

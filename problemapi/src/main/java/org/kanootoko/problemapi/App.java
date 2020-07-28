@@ -121,16 +121,17 @@ public class App {
 
         Spark.before((request, response) -> response.header("Access-Control-Allow-Origin", "*"));
 
-        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-06-26</h1>"
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-07-28</h1>"
                 + "<p>Set Accept header to include json or hal+json, and you will get api description in HAL format from this page</p>"
                 + "<a href=\"/api/problems/search\">Search problems API</a><br/><a href=/api/groups>Get groups API</a></body></html>");
         Spark.get("/api", (req, res) -> {
             JSONObject result = new JSONObject();
-            result.put("version", "2020-06-26");
+            result.put("version", "2020-07-28");
             JSONObject links = new JSONObject();
             links.put("self", "/api");
             links.put("problems-search", new JSONObject());
-            ((JSONObject) links.get("problems-search")).put("href", "/api/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,status,limit}");
+            ((JSONObject) links.get("problems-search"))
+                .put("href", "/api/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,status,municipality,region,limit}");
             ((JSONObject) links.get("problems-search")).put("templated", true);
             links.put("categories", new JSONObject());
             ((JSONObject) links.get("categories")).put("href", "/api/groups/category");
@@ -138,6 +139,10 @@ public class App {
             ((JSONObject) links.get("subcategories")).put("href", "/api/groups/subcategory");
             links.put("statuses", new JSONObject());
             ((JSONObject) links.get("statuses")).put("href", "/api/groups/status");
+            links.put("munitipalities", new JSONObject());
+            ((JSONObject) links.get("munitipalities")).put("href", "/api/groups/municipality");
+            links.put("regions", new JSONObject());
+            ((JSONObject) links.get("regions")).put("href", "/api/groups/region");
             result.put("_links", links);
             res.type("application/hal+json");
             return result.toJSONString();
@@ -149,7 +154,9 @@ public class App {
         });
 
         Spark.get("/api/groups",
-                (req, res) -> "<html><body>Most needed variants: /status , /category , /subcategory</body></html>");
+                (req, res) -> "<html><body><a href=groups/status>statuses</a>, <a href=groups/category</a>categories</a>," +
+                    " <a href=groups/subcategory>subcategories</a>, <a href=groups/municipality>municipalities</a>," +
+                    " <a href=groups/region>regions</a></body></html>");
 
         Spark.get("/api/problems/search", (req, res) -> {
             String minDateStr, maxDateStr;
@@ -164,6 +171,8 @@ public class App {
                 secondCoordStr = (String) requestBody.get("secondCoord");
                 pf.setCategory((String) requestBody.get("category"));
                 pf.setSubcategory((String) requestBody.get("subcategory"));
+                pf.setMunicipality((String) requestBody.get("municipality"));
+                pf.setRegion((String) requestBody.get("region"));
                 pf.setStatus((String) requestBody.get("status"));
                 if (requestBody.containsKey("limit")) {
                     pf.setLimit(Integer.parseInt((String) requestBody.get("limit")));
@@ -176,6 +185,8 @@ public class App {
                 secondCoordStr = (String) req.queryParams("secondCoord");
                 pf.setCategory((String) req.queryParams("category"));
                 pf.setSubcategory((String) req.queryParams("subcategory"));
+                pf.setMunicipality((String) req.queryParams("municipality"));
+                pf.setRegion((String) req.queryParams("region"));
                 pf.setStatus((String) req.queryParams("status"));
                 if (req.queryParams("limit") != null) {
                     pf.setLimit(Integer.parseInt(req.queryParams("limit")));
@@ -186,7 +197,7 @@ public class App {
                 return "<html>" + "<body>" + "<h1>No parameters are given</h1>"
                         + "<p>Use this endpoint with <b>minDate</b> and/or <b>maxDate</b>, "
                         + "<b>firstPoint</b> and <b>secondPoint</b>, <b>status</b>, <b>category</b>,"
-                        + "<b>subcategory</b>, <b>limit</b> parameters</p>"
+                        + "<b>subcategory</b>, <b>municipality</b>, <b>region</b>, <b>limit</b> parameters</p>"
                         + "<p>For points use format \"latitude,longitude\", for dates - \"YYYY-MM-DD\"</p>"
                         + "<p>The result will be a list of problems, coordinates in format of array [latitude, longitude]</p>"
                         + "</body>" + "</html>";
