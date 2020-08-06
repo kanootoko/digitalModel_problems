@@ -51,13 +51,15 @@ public class ProblemFilter {
         return this;
     }
 
-    public ProblemFilter setFirstCoord(Coordinates firstCoord) {
+    public ProblemFilter setCoords(Coordinates firstCoord, Coordinates secondCoord) {
         this.firstCoord = firstCoord;
+        this.secondCoord = secondCoord;
         return this;
     }
 
-    public ProblemFilter setSecondCoord(Coordinates secondCoord) {
-        this.secondCoord = secondCoord;
+    public ProblemFilter setCoords(String firstCoord, String secondCoord) {
+        this.firstCoord = new Coordinates(firstCoord);
+        this.secondCoord = new Coordinates(secondCoord);
         return this;
     }
 

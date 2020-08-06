@@ -4,6 +4,7 @@
 *.csv
 *.zip
 *.tar
+*.tar.gz
 
 target/
 /test_api/

@@ -4,13 +4,31 @@
 
 This is API server for getting probelms from postgres database based on data from [Our Saint-Petersburg](https://gorod.gov.spb.ru/).
 
-## Launching
+## Launching on host machine
 
 1. install Postgres database and postgis extension
-2. fill the database by data with the script
-3. clone this repository
-4. compile with `mvn compile assembly:single`
-5. launch with `java -jar target/problemapi-2020-07-30-jar-with-dependencies.jar`
+2. clone this repository
+3. fill the database by data with the [script](../insert_to_db/insert_to_db.py)
+4. open terminal in cloned repository
+5. compile with `mvn compile assembly:single`
+6. install R and install `tidyverse` library (look at **R installation** section in case of problems)
+7. launch with `java -jar target/problemapi-2020-08-06-jar-with-dependencies.jar`
+
+## R installation (Linux machine instruction)
+
+You need to have R (r-base package) and "tidyverse" package installed to use /api/ranking endpoint. In case
+  of using without docker you can just have it with `R -e 'install.package("tidyverse")'` command, ensuring that
+  you have all of the dependencies (see _dockerfile_ and _download-build-lbs.sh_ in __ranking-model__ directory).  
+In case of using Docker you will need to run container which will build all of the needed libraries and then pass
+  them to the main container in build time.
+
+1. open terminal in cloned repository
+2. launch `cd ranking-model && mkdir libs` to change the directory and create libs folder
+3. launch `docker build --tag build_libs . && docker run --name build_libs -v "$PWD/libs":/libs build_libs`
+4. launch `docker rm build_libs && docker rmi build_libs` to remove unnedeed container and image
+
+After that ./ranking-model/libs/build directory will contain suitable compiled libraries. You can delete folder after the
+  building of the main container
 
 ## CLI Parameters
 
@@ -35,10 +53,10 @@ The same parameters can be configured with environment variables:
 ## Packing in Docker
 
 1. open terminal in cloned repository
-2. build image with `docker build --tag problems_api:2020-07-30 .`
+2. build image with `docker build --tag kanootoko/digitalModel_problems:2020-08-06 .`
 3. run image with postgres server running on host machine on default port 5432
-    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api problems_api:2020-07-30`
-    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api problems_api:2020-07-30`  
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalModel_problems:2020-08-06`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalModel_problems:2020-08-06`  
        Ensure that:
         1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
         2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)
@@ -59,15 +77,19 @@ At this moment there are 4 endpoints:
 
 * **/api**: returns HAL description of API provided
 * **/api/problems/search** : takes parameters by query or inside the body as JSON. You can set _minDate_ and/or _maxDate_
-  in format `YYYY-MM-DD`, _status_, _firstCoord_ and _secondCoord_ in format `latitude,longitude`, _category_, _subcategory_, _limit_.  
-  Returns list of problems descriptions, coordinates and statuses corresponding to request, limited by 100000 by default.
-  Also each of the entities has their link to get full information.
+    in format `YYYY-MM-DD`, _status_, _firstCoord_ and _secondCoord_ in format `latitude,longitude`, _category_, _subcategory_,
+    _municipality_, _region_, _limit_. At least one parameter must be set.  
+  Returns a list of problems descriptions, coordinates and statuses corresponding to request, limited by 100000 by default.
+    Also each of the entities has their link to get full information.
+* **/api/ranking/** : takes parameters by query or inside the body as JSON. You should set _firstCoord_ and _secondCoord_ in format
+    `latitude,longitude`.  
+  Returns 4 ranking results: safety, physical comfort, feelings comfort and total rank of given territory based on problems
 * **/api/problems/:problemID** : returns single problem information. It should not be used by id as it is, link should come from
   /problems/search result list.
 * **/api/groups/:labelName** : returns list of unique values in given label and number of problems having those values.
   It is used to get statuses, categories and subcategories.
 
-Also with no parameters URIs {/, /api, /api/groups and /api/problems/search} will return HTML with a bit of description
+Also with no parameters URIs {/, /api/groups, /api/ranking and /api/problems/search} will return HTML with a bit of description
 
 ### Output format
 
@@ -81,7 +103,7 @@ Also with no parameters URIs {/, /api, /api/groups and /api/problems/search} wil
         },
         "problems-search": {
             "templated": true,
-            "href": "/api/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,municipality,region,status,limit}"
+            "href": "/api/problems/search?<queryString>"
         },
         "self": "/api",
         "statuses": {
@@ -136,7 +158,7 @@ Format:
 Formats:
 
 * :problems_number, :problemID - integer
-* :latitude, :longitude - double
+* :latitude, :longitude - floating point number with precision of 4 digits after the point
 * :description, :status - string
 * :creationDate - string representing date in format "YYYY-MM-DD"
 
@@ -181,7 +203,7 @@ Formats:
 * :address - string, can be empty
 * :creationDate, :updateDate - string representing date in format "YYYY-MM-DD"
 * :problemID, :outerID - integer
-* :latitude, :longitude - double
+* :latitude, :longitude - floating point number with precision of 4 digits after the point
 
 #### /api/groups/:labelName
 
@@ -211,3 +233,32 @@ Formats:
 
 * :groups_number, :groupSize - integer
 * :name, groupName - string
+
+#### /api/ranking
+
+```json
+{
+    "_links": {
+        "self": {
+            "href": "/api/ranking?<queryString>"
+        }
+    },
+    "_embedded": {
+        "rank": {
+            "total": ":total",
+            "S": ":S",
+            "C": ":C",
+            "I": ":I"
+        },
+        "problems_number": ":problems_number"
+    }
+}
+```
+
+Formats:
+
+* :problems_number - integer
+* :total, :S, :C, :I - floating point number with precision of 4 digits after the point
+
+S - safety, C - physical comfort, C - feelings comfort, problems_number - number of problems
+  got by coordinates and used in calculations

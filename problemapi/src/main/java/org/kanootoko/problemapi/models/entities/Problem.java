@@ -88,6 +88,14 @@ public class Problem {
         return coordinates;
     }
 
+    public Double getLatitude() {
+        return coordinates == null ? null : coordinates.getLatitude();
+    }
+
+    public Double getLongitude() {
+        return coordinates == null ? null : coordinates.getLongitude();
+    }
+
     public String getAddress() {
         return address;
     }

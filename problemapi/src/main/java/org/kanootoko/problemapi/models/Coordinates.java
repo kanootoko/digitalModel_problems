@@ -12,6 +12,12 @@ public class Coordinates {
         this.longitude = longitude;
     }
 
+    public Coordinates(String latAndLong) {
+        String[] coords_arr = latAndLong.split(",");
+        latitude = Double.parseDouble(coords_arr[0]);
+        longitude = Double.parseDouble(coords_arr[1]);
+    }
+
     public double getLatitude() {
         return latitude;
     }

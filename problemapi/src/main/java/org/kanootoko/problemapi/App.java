@@ -1,8 +1,15 @@
 package org.kanootoko.problemapi;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import com.opencsv.CSVReader;
+import com.opencsv.CSVWriter;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -12,7 +19,6 @@ import org.apache.commons.cli.Options;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import org.kanootoko.problemapi.models.Coordinates;
 import org.kanootoko.problemapi.models.entities.Problem;
 import org.kanootoko.problemapi.services.ProblemService;
 import org.kanootoko.problemapi.utils.ConnectionManager;
@@ -120,22 +126,27 @@ public class App {
         });
 
         Spark.before((request, response) -> response.header("Access-Control-Allow-Origin", "*"));
-        Spark.after((request, response) -> {
-            response.header("Content-Encoding", "gzip");
-        });
+        Spark.after((request, response) -> response.header("Content-Encoding", "gzip"));
 
-        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-07-30</h1>"
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-08-06</h1>"
                 + "<p>Set Accept header to include json or hal+json, and you will get api description in HAL format from this page</p>"
-                + "<a href=\"/api/problems/search\">Search problems API</a><br/><a href=/api/groups>Get groups API</a></body></html>");
+                + "<a href=\"/api/problems/search\">Search problems API</a><br/><a href=/api/groups>Get groups API</a>"
+                + "<br/><a href=/api/ranking>Region ranking API</a></body></html>");
+
         Spark.get("/api", (req, res) -> {
             JSONObject result = new JSONObject();
-            result.put("version", "2020-07-30");
+            result.put("version", "2020-08-06");
             JSONObject links = new JSONObject();
-            links.put("self", "/api");
+            links.put("self", new JSONObject());
+            ((JSONObject) links.get("self")).put("href", req.uri());
             links.put("problems-search", new JSONObject());
             ((JSONObject) links.get("problems-search"))
                 .put("href", "/api/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,status,municipality,region,limit}");
             ((JSONObject) links.get("problems-search")).put("templated", true);
+                links.put("ranking", new JSONObject());
+            ((JSONObject) links.get("ranking"))
+                .put("href", "/api/ranking{?firstCoord,secondCoord}");
+            ((JSONObject) links.get("ranking")).put("templated", true);
             links.put("categories", new JSONObject());
             ((JSONObject) links.get("categories")).put("href", "/api/groups/category");
             links.put("subcategories", new JSONObject());
@@ -197,13 +208,13 @@ public class App {
             } else {
                 System.out.println("GET /api/problems: No query or body params");
                 res.type("text/html");
-                return "<html>" + "<body>" + "<h1>No parameters are given</h1>"
+                return "<html><h1>Problems search: no parameters are given</h1>"
                         + "<p>Use this endpoint with <b>minDate</b> and/or <b>maxDate</b>, "
                         + "<b>firstPoint</b> and <b>secondPoint</b>, <b>status</b>, <b>category</b>,"
                         + "<b>subcategory</b>, <b>municipality</b>, <b>region</b>, <b>limit</b> parameters</p>"
                         + "<p>For points use format \"latitude,longitude\", for dates - \"YYYY-MM-DD\"</p>"
                         + "<p>The result will be a list of problems, coordinates in format of array [latitude, longitude]</p>"
-                        + "</body>" + "</html>";
+                        + "</body></html>";
             }
             try {
                 if (minDateStr != null) {
@@ -218,14 +229,7 @@ public class App {
             }
             if (firstCoordStr != null && secondCoordStr != null) {
                 try {
-                    String[] coords_arr = firstCoordStr.split(",");
-                    Coordinates first = new Coordinates(Double.parseDouble(coords_arr[0]),
-                            Double.parseDouble(coords_arr[1]));
-                    coords_arr = secondCoordStr.split(",");
-                    Coordinates second = new Coordinates(Double.parseDouble(coords_arr[0]),
-                            Double.parseDouble(coords_arr[1]));
-                    pf.setFirstCoord(first);
-                    pf.setSecondCoord(second);
+                    pf.setCoords(firstCoordStr, secondCoordStr);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -236,7 +240,8 @@ public class App {
             JSONObject result = new JSONObject();
             result.put("_links", new JSONObject());
             ((JSONObject) result.get("_links")).put("self", new JSONObject());
-            ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put("href", req.uri() + "?" + req.queryString());
+            ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put(
+                "href", req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
             result.put("size", problems.size());
             JSONArray problemsArray = new JSONArray();
             for (Problem p : problems) {
@@ -260,6 +265,7 @@ public class App {
             res.type("application/hal+json");
             return result.toJSONString();
         });
+
         Spark.get("/api/problems/:problemID", (req, res) -> {
             int problemID = Integer.parseInt(req.params(":problemID"));
             ProblemService ps = ServiceFactory.getPorblemService();
@@ -270,6 +276,7 @@ public class App {
             res.type("application/hal+json");
             return result.toJSONString();
         });
+
         Spark.get("/api/groups/:labelName", (req, res) -> {
             ProblemService ps = ServiceFactory.getPorblemService();
             Map<String, Integer> groups = ps.getGroupsSize(req.params(":labelName"));
@@ -287,6 +294,74 @@ public class App {
             }
             result.put("_embedded", new JSONObject());
             ((JSONObject) result.get("_embedded")).put("groups", groupsArray);
+            res.type("application/hal+json");
+            return result.toJSONString();
+        });
+
+        Spark.get("/api/ranking", (req, res) -> {
+            String firstCoordStr, secondCoordStr;
+            if (!req.body().isEmpty()) {
+                JSONObject requestBody = (JSONObject) new JSONParser().parse(req.body());
+                System.out.println("GET /api/ranking: RequestBody: " + requestBody);
+                firstCoordStr = (String) requestBody.get("firstCoord");
+                secondCoordStr = (String) requestBody.get("secondCoord");
+            } else if (!req.queryParams().isEmpty()) {
+                System.out.println("GET /api/ranking: request query: " + req.queryString());
+                firstCoordStr = (String) req.queryParams("firstCoord");
+                secondCoordStr = (String) req.queryParams("secondCoord");
+            } else {
+                System.out.println("GET /api/ranking: No query or body params");
+                res.type("text/html");
+                return "<html><body><h1>Territory ranking: no parameters are given</h1>"
+                        + "<p>Use this endpoint with <b>firstPoint</b> and <b>secondPoint</b> parameters </p>"
+                        + "<p>For points use format \"latitude,longitude\"</p>"
+                        + "<p>The result will be a number of buildings used for calculations and 3 ranking"
+                        + " points with total</p></body></html>";
+            }
+
+            res.type("hal+json");
+            JSONObject result = new JSONObject();
+            result.put("_links", new JSONObject());
+            ((JSONObject) result.get("_links")).put("self", new JSONObject());
+            ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put(
+                "href", req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
+            result.put("_embedded", new JSONObject());
+            
+            List<Problem> problems = ServiceFactory.getPorblemService().getProblemsByFilter(new ProblemFilter().setCoords(firstCoordStr, secondCoordStr));
+            ((JSONObject) result.get("_embedded")).put("problems_number", problems.size());
+            if (problems.size() == 0) {
+                JSONObject rank = new JSONObject();
+                rank.put("S", null);
+                rank.put("I", null);
+                rank.put("C", null);
+                rank.put("total", null);
+                ((JSONObject) result.get("_embedded")).put("rank", rank);
+            } else {
+                String filename = java.util.UUID.randomUUID().toString();
+                try (CSVWriter csvWriter = new CSVWriter(new FileWriter(new File(filename + ".csv")))) {
+                    csvWriter.writeNext("ID,Название,Широта,Долгота,Подкатегория,Категория".split(","));
+                    for (Problem problem: problems) {
+                        csvWriter.writeNext(new String[]{problem.getId().toString(), problem.getName(), problem.getLatitude().toString(),
+                            problem.getLongitude().toString(), problem.getSubcategory(), problem.getCategory()});
+                    }
+                }
+    
+                Process p = Runtime.getRuntime().exec(new String[]{"Rscript", "ranking_model.R", filename + ".csv"});
+                p.waitFor(15, TimeUnit.SECONDS);
+    
+                try (CSVReader reader = new CSVReader(new FileReader(new File(filename + "_output.csv")))) {
+                    reader.readNext();
+                    String[] tmp = reader.readNext();
+                    JSONObject rank = new JSONObject();
+                    rank.put("S", tmp[0]);
+                    rank.put("I", tmp[1]);
+                    rank.put("C", tmp[2]);
+                    rank.put("total", tmp[3]);
+                    ((JSONObject) result.get("_embedded")).put("rank", rank);
+                }
+                new File(filename + ".csv").delete();
+                new File(filename + "_output.csv").delete();
+            }
             res.type("application/hal+json");
             return result.toJSONString();
         });
