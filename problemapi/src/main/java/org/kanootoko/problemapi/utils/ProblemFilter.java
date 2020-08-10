@@ -161,7 +161,7 @@ public class ProblemFilter {
             }
             count++;
             sb.append(String.format(
-                    "ST_WITHIN(coordinates, ST_POLYGON('LINESTRING(%s %s, %s %s, %s %s, %s %s, %s %s)', 4326))",
+                    "ST_WITHIN(coordinates, ST_POLYGON(text('LINESTRING(%s %s, %s %s, %s %s, %s %s, %s %s)'), 4326))",
                     firstCoord.getLongitude(), firstCoord.getLatitude(), firstCoord.getLongitude(),
                     secondCoord.getLatitude(), secondCoord.getLongitude(), secondCoord.getLatitude(),
                     secondCoord.getLongitude(), firstCoord.getLatitude(), firstCoord.getLongitude(),
