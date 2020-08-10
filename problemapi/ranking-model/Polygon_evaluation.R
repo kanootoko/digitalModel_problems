@@ -14,7 +14,7 @@ library(tidyverse)
 library(readr)
 
 # Загружаем датасет с жалобами из файла "problems_export_2020-05-27.csv" с необходимыми переменными
-datascore<-read_csv(filename,col_types = cols_only(
+datascore1<-read_csv(filename,col_types = cols_only(
         ID = col_double(),
         Название = col_character(),
         Широта = col_double(),
@@ -26,10 +26,10 @@ datascore<-read_csv(filename,col_types = cols_only(
 
 # На примере случайной выборки из datascore (1000 наблюдений) рассматриваем расчёт индекса оценки
 # территорий на выбранном полигоне.
-#datascore1 <- datascore %>% sample_n(size = 1000)
+#datascore1 <- datascore1 %>% sample_n(size = 1000)
 
 ###### 1. ЗДАНИЯ
-poly <- datascore %>% filter(Категория == "Дом"| Категория == "Сооружение"|Категория == "Квартира")
+poly <- datascore1 %>% filter(Категория == "Дом"| Категория == "Сооружение"|Категория == "Квартира")
 poly1 <- poly %>% add_count(Широта, Долгота)
 
 # Создаём переменную level: присваиваем количественные значения для Подкатегорий - всего 19.
