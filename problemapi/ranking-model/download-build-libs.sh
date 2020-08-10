@@ -1,14 +1,17 @@
 #!/bin/bash
 echo 'aval_packages = available.packages(repos="http://cran.us.r-project.org")
-getPackages <- function(pack) {
-    packages = c(pack)
-    dependencies <- unlist(tools::package_dependencies(pack, aval_packages, which=c("Depends", "Imports", "LinkingTo")))
-    for (package in dependencies) {
-        packages = union(getPackages(package), packages)
+getPackages <- function(install_packages) {
+    packages = c()
+    for (install_package in c(install_packages)) {
+        packages = c(packages, install_package)
+        dependencies <- unlist(tools::package_dependencies(install_package, aval_packages, which=c("Depends", "Imports", "LinkingTo")))
+        for (package in dependencies) {
+            packages = union(getPackages(package), packages)
+        }
     }
     packages
 }
-packages <- getPackages("tidyverse")
+packages <- getPackages(c("tidyverse", "readr"))
 write.table(packages, file="/libs/packages.csv", row.names=F, col.names=F)
 download.packages(packages, destdir="/libs", repos="http://cran.us.r-project.org")' | R --no-save
 

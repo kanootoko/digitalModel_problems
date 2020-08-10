@@ -128,14 +128,14 @@ public class App {
         Spark.before((request, response) -> response.header("Access-Control-Allow-Origin", "*"));
         Spark.after((request, response) -> response.header("Content-Encoding", "gzip"));
 
-        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-08-06</h1>"
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-08-10</h1>"
                 + "<p>Set Accept header to include json or hal+json, and you will get api description in HAL format from this page</p>"
                 + "<a href=\"/api/problems/search\">Search problems API</a><br/><a href=/api/groups>Get groups API</a>"
                 + "<br/><a href=/api/ranking>Region ranking API</a></body></html>");
 
         Spark.get("/api", (req, res) -> {
             JSONObject result = new JSONObject();
-            result.put("version", "2020-08-06");
+            result.put("version", "2020-08-10");
             JSONObject links = new JSONObject();
             links.put("self", new JSONObject());
             ((JSONObject) links.get("self")).put("href", req.uri());
@@ -346,7 +346,7 @@ public class App {
                     }
                 }
     
-                Process p = Runtime.getRuntime().exec(new String[]{"Rscript", "ranking_model.R", filename + ".csv"});
+                Process p = Runtime.getRuntime().exec(new String[]{"Rscript", "polygon_evaluation.R", filename + ".csv"});
                 p.waitFor(15, TimeUnit.SECONDS);
     
                 try (CSVReader reader = new CSVReader(new FileReader(new File(filename + "_output.csv")))) {
