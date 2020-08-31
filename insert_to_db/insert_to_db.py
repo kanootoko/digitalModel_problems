@@ -16,9 +16,9 @@ def _prepare_string(s: str):
 
 def create_tables(conn_or_file):
     creation_script = '''
-        create extension if not exists postgis with schema public;
+        CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;
 
-        create table if not exists Problems (
+        CREATE TABLE IF NOT EXISTS Problems (
             ID serial primary key not null,
             OuterID int not null,
             Name varchar not null,
@@ -35,6 +35,26 @@ def create_tables(conn_or_file):
             Reason varchar not null,
             Category varchar not null,
             Subcategory varchar not null
+        );
+        
+        CREATE TABLE evaluation_municipalities (
+            municipality_name varchar primary key not null,
+            s float not null,
+            i float not null,
+            c float not null,
+            total_value float not null,
+            objects_number int not null
+
+        );
+        
+        CREATE TABLE evaluation_regions (
+            region_name varchar primary key not null,
+            s float not null,
+            i float not null,
+            c float not null,
+            total_value float not null,
+            objects_number int not null
+
         );'''
     if isinstance(conn, psycopg2.extensions.connection):
         cur = conn.cursor()
@@ -88,8 +108,11 @@ def insert_to_db(conn: Optional[psycopg2.extensions.connection], path_to_csv: st
             if line['Статус'] not in ('Завершено: Пользователь удовлетворен решением проблемы', 'Завершено: Автоматически',
                                       'Рассмотрение', 'Промежуточный ответ', 'Получен ответ', 'Принят',
                                       'Завершено: Народный контролер подтвердил решение проблемы', 'Модерация'
-                                      ):
-                continue
+                                      ) \
+                or line['Муниципальное образование'].endswith('(искл.)') \
+                or line['Название'].endswith('(искл.)') \
+                or line['Причина обращения'].endswith('(искл.)'):
+                    continue
             loaded += 1
             if (loaded % _VERBOSE_NUMBER == 0):
                 log(f'{loaded:7} lines inserted, {i:7} processed totally, {len(data):7} total')
