@@ -73,8 +73,9 @@ public class ProblemFilter {
         return this;
     }
 
-    public void setLimit(int limit) {
+    public ProblemFilter setLimit(int limit) {
         this.limit = limit;
+        return this;
     }
 
     public String getStatus() {
@@ -129,7 +130,7 @@ public class ProblemFilter {
         sb.append(paramName);
         sb.append(" ");
         sb.append(operator);
-        sb.append(" (?)");
+        sb.append(" ?");
         return count + 1;
     }
 
@@ -144,7 +145,10 @@ public class ProblemFilter {
 
     public String buildWhereString() {
         if (isNulled()) {
-            return " limit " + limit;
+            if (limit != 0)
+                return " limit " + limit;
+            else
+                return "";
         }
         StringBuilder sb = new StringBuilder(" where");
         int count = 0;
@@ -175,8 +179,10 @@ public class ProblemFilter {
             sb.append(" and ");
         }
         sb.append("municipality not like '%%(искл.)'");
-        sb.append(" limit ");
-        sb.append(limit);
+        if (limit != 0) {
+            sb.append(" limit ");
+            sb.append(limit);
+        }
         return sb.toString();
     }
 

@@ -1,15 +1,10 @@
 package org.kanootoko.problemapi;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
-import com.opencsv.CSVReader;
-import com.opencsv.CSVWriter;
+import java.util.Map.Entry;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -24,6 +19,7 @@ import org.kanootoko.problemapi.services.ProblemService;
 import org.kanootoko.problemapi.utils.ConnectionManager;
 import org.kanootoko.problemapi.utils.ProblemFilter;
 import org.kanootoko.problemapi.utils.ServiceFactory;
+import org.kanootoko.problemapi.utils.Utils;
 
 import spark.Spark;
 
@@ -32,6 +28,7 @@ public class App {
     public static void main(String[] args) {
         int api_port = 80, db_port = 5432;
         String db_addr = "localhost", db_name = "problems", db_user = "postgres", db_pass = "postgres";
+        boolean skip_evaluation = false;
 
         Map<String, String> env = System.getenv();
         if (env.containsKey("PROBLEMS_API_PORT")) {
@@ -62,6 +59,9 @@ public class App {
         if (env.containsKey("PROBLEMS_DB_PASS")) {
             db_pass = env.get("PROBLEMS_DB_PASS");
         }
+        if (env.containsKey("PROBLEMS_SKIP_EVALUATION")) {
+            skip_evaluation = true;
+        }
 
         Options options = new Options();
         options.addOption(
@@ -76,6 +76,8 @@ public class App {
                 new Option("U", "db_user", true, String.format("user name for database [default: %s]", db_user)));
         options.addOption(
                 new Option("W", "db_pass", true, String.format("user password for database [default: %s]", db_pass)));
+        options.addOption(
+                new Option("s", "skip_evaluation", false, String.format("skip municipality and region evaluation (if already predent in database)", db_pass)));
 
         try {
             CommandLine cmd = new DefaultParser().parse(options, args);
@@ -97,6 +99,9 @@ public class App {
             if (cmd.hasOption("db_pass")) {
                 db_pass = cmd.getOptionValue("db_pass");
             }
+            if (cmd.hasOption("skip_evaluation")) {
+                skip_evaluation = true;
+            }
         } catch (Exception e) {
             System.out.println(e.getMessage());
             new HelpFormatter().printHelp("problems-api-server", options);
@@ -107,6 +112,17 @@ public class App {
         ConnectionManager.setDB_port(db_port);
         ConnectionManager.setDB_user(db_user);
         ConnectionManager.setDB_pass(db_pass);
+
+        if (!skip_evaluation) {
+            ProblemService problemService = ServiceFactory.getPorblemService();
+            System.out.println("Evaluating municipalities");
+            problemService.evaluateMunicipalities();
+            System.out.println("Evaluating regions");
+            problemService.evaluateRegions();
+            System.out.println("Evaluation finished");
+        } else {
+            System.out.println("Evaluation skipped");
+        }
 
         Spark.port(api_port);
 
@@ -128,35 +144,61 @@ public class App {
         Spark.before((request, response) -> response.header("Access-Control-Allow-Origin", "*"));
         Spark.after((request, response) -> response.header("Content-Encoding", "gzip"));
 
-        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-08-10-quickfix</h1>"
+        // INFO BLOCK
+
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-08-31</h1>"
                 + "<p>Set Accept header to include json or hal+json, and you will get api description in HAL format from this page</p>"
-                + "<a href=\"/api/problems/search\">Search problems API</a><br/><a href=/api/groups>Get groups API</a>"
-                + "<br/><a href=/api/ranking>Region ranking API</a></body></html>");
+                + "<ul><li><a href=/api/problems/search>Search problems API</a></li>"
+                + "<li><a href=/api/groups>Get groups API</a></li>"
+                + "<li><a href=/api/evaluation/polygon>Polygon evaluation API</a></li>"
+                + "<ul><li><a href=/api/evaluation/municipalities>Polygon evaluation (municipalities)</a></li>"
+                + "<li><a href=/api/evaluation/regions>Polygon evaluation (regions)</a></li></ul>"
+                + "<li><a href=/api/evaluation/objects>Objects evaluation API</a></li></ul></body></html>");
 
         Spark.get("/api", (req, res) -> {
             JSONObject result = new JSONObject();
-            result.put("version", "2020-08-10-quickfix");
+            result.put("version", "2020-08-31");
             JSONObject links = new JSONObject();
+
             links.put("self", new JSONObject());
             ((JSONObject) links.get("self")).put("href", req.uri());
+
             links.put("problems-search", new JSONObject());
             ((JSONObject) links.get("problems-search"))
                 .put("href", "/api/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,status,municipality,region,limit}");
             ((JSONObject) links.get("problems-search")).put("templated", true);
-                links.put("ranking", new JSONObject());
-            ((JSONObject) links.get("ranking"))
-                .put("href", "/api/ranking{?firstCoord,secondCoord}");
-            ((JSONObject) links.get("ranking")).put("templated", true);
+
+            links.put("evaluation-polygon", new JSONObject());
+            ((JSONObject) links.get("evaluation-polygon"))
+                .put("href", "/api/evaluation/polygon{?firstCoord,secondCoord,municipality,region}");
+            ((JSONObject) links.get("evaluation-polygon")).put("templated", true);
+
+            links.put("evaluation-objects", new JSONObject());
+            ((JSONObject) links.get("evaluation-objects"))
+                .put("href", "/api/evaluation/objects{?firstCoord,secondCoord,type}");
+            ((JSONObject) links.get("evaluation-objects")).put("templated", true);
+
+            links.put("evaluation-regions", new JSONObject());
+            ((JSONObject) links.get("evaluation-regions")).put("href", "/api/evaluation/regions");
+
+            links.put("evaluation-municipalities", new JSONObject());
+            ((JSONObject) links.get("evaluation-municipalities")).put("href", "/api/evaluation/municipalities");
+
             links.put("categories", new JSONObject());
             ((JSONObject) links.get("categories")).put("href", "/api/groups/category");
+
             links.put("subcategories", new JSONObject());
             ((JSONObject) links.get("subcategories")).put("href", "/api/groups/subcategory");
+
             links.put("statuses", new JSONObject());
             ((JSONObject) links.get("statuses")).put("href", "/api/groups/status");
+
             links.put("munitipalities", new JSONObject());
             ((JSONObject) links.get("munitipalities")).put("href", "/api/groups/municipality");
+
             links.put("regions", new JSONObject());
             ((JSONObject) links.get("regions")).put("href", "/api/groups/region");
+
             result.put("_links", links);
             res.type("application/hal+json");
             return result.toJSONString();
@@ -172,13 +214,15 @@ public class App {
                     " <a href=groups/subcategory>subcategories</a>, <a href=groups/municipality>municipalities</a>," +
                     " <a href=groups/region>regions</a></body></html>");
 
+        // PROBLEMS BLOCK
+
         Spark.get("/api/problems/search", (req, res) -> {
             String minDateStr, maxDateStr;
             String firstCoordStr, secondCoordStr;
             ProblemFilter pf = new ProblemFilter();
             if (!req.body().isEmpty()) {
                 JSONObject requestBody = (JSONObject) new JSONParser().parse(req.body());
-                System.out.println("GET /api/problems: RequestBody: " + requestBody);
+                System.out.println("GET /api/problems/search: RequestBody: " + requestBody);
                 minDateStr = (String) requestBody.get("minDate");
                 maxDateStr = (String) requestBody.get("maxDate");
                 firstCoordStr = (String) requestBody.get("firstCoord");
@@ -192,7 +236,7 @@ public class App {
                     pf.setLimit(Integer.parseInt((String) requestBody.get("limit")));
                 }
             } else if (!req.queryParams().isEmpty()) {
-                System.out.println("GET /api/problems: request query: " + req.queryString());
+                System.out.println("GET /api/problems/search: request query: " + req.queryString());
                 minDateStr = req.queryParams("minDate");
                 maxDateStr = req.queryParams("maxDate");
                 firstCoordStr = (String) req.queryParams("firstCoord");
@@ -206,7 +250,7 @@ public class App {
                     pf.setLimit(Integer.parseInt(req.queryParams("limit")));
                 }
             } else {
-                System.out.println("GET /api/problems: No query or body params");
+                System.out.println("GET /api/problems/search: No query or body params");
                 res.type("text/html");
                 return "<html><h1>Problems search: no parameters are given</h1>"
                         + "<p>Use this endpoint with <b>minDate</b> and/or <b>maxDate</b>, "
@@ -277,6 +321,8 @@ public class App {
             return result.toJSONString();
         });
 
+        // GROUPS BLOCK
+
         Spark.get("/api/groups/:labelName", (req, res) -> {
             ProblemService ps = ServiceFactory.getPorblemService();
             Map<String, Integer> groups = ps.getGroupsSize(req.params(":labelName"));
@@ -298,28 +344,154 @@ public class App {
             return result.toJSONString();
         });
 
-        Spark.get("/api/ranking", (req, res) -> {
-            String firstCoordStr, secondCoordStr;
+        // EVALUATION BLOCK
+
+        Spark.get("/api/evaluation/polygon", (req, res) -> {
+            String firstCoordStr, secondCoordStr, municipality, region;
             if (!req.body().isEmpty()) {
                 JSONObject requestBody = (JSONObject) new JSONParser().parse(req.body());
-                System.out.println("GET /api/ranking: RequestBody: " + requestBody);
+                System.out.println("GET /api/evaluate/polygon: RequestBody: " + requestBody);
                 firstCoordStr = (String) requestBody.get("firstCoord");
                 secondCoordStr = (String) requestBody.get("secondCoord");
+                municipality = (String) requestBody.get("municipality");
+                region = (String) requestBody.get("region");
             } else if (!req.queryParams().isEmpty()) {
-                System.out.println("GET /api/ranking: request query: " + req.queryString());
+                System.out.println("GET /api/evaluate/polygon: request query: " + req.queryString());
                 firstCoordStr = (String) req.queryParams("firstCoord");
                 secondCoordStr = (String) req.queryParams("secondCoord");
+                municipality = (String) req.queryParams("municipality");
+                region = (String) req.queryParams("region");
             } else {
-                System.out.println("GET /api/ranking: No query or body params");
+                System.out.println("GET /api/evaluate/polygon: No query or body params");
                 res.type("text/html");
-                return "<html><body><h1>Territory ranking: no parameters are given</h1>"
-                        + "<p>Use this endpoint with <b>firstPoint</b> and <b>secondPoint</b> parameters </p>"
+                return "<html><body><h1>Polygon evaluation: no parameters are given</h1>"
+                        + "<p>Use this endpoint with <b>firstPoint</b> and <b>secondPoint</b>, or "
+                        + "<b>municipality</b>, or <b>region</b> parameters </p>"
                         + "<p>For points use format \"latitude,longitude\"</p>"
-                        + "<p>The result will be a number of buildings used for calculations and 3 ranking"
-                        + " points with total</p></body></html>";
+                        + "<p>The result will be a number of buildings used for calculations and 3 evaluation"
+                        + " values with total evaluation value</p></body></html>";
             }
 
-            res.type("hal+json");
+            JSONObject result = new JSONObject();
+            result.put("_links", new JSONObject());
+            ((JSONObject) result.get("_links")).put("self", new JSONObject());
+            ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put(
+                "href", req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
+            result.put("_embedded", new JSONObject());
+            
+            if (region == null && municipality == null) {
+                List<Problem> problems = ServiceFactory.getPorblemService().getProblemsByFilter(new ProblemFilter().setCoords(firstCoordStr, secondCoordStr));
+                ((JSONObject) result.get("_embedded")).put("problems_number", problems.size());
+                JSONObject rank = new JSONObject();
+                if (problems.size() == 0) {
+                    rank.put("S", null);
+                    rank.put("I", null);
+                    rank.put("C", null);
+                    rank.put("total", null);
+                } else {
+                    Double[] sict = Utils.evaluatePolygon(problems);
+                    rank.put("S", sict[0]);
+                    rank.put("I", sict[1]);
+                    rank.put("C", sict[2]);
+                    rank.put("total", sict[3]);
+                }
+                ((JSONObject) result.get("_embedded")).put("rank", rank);
+            } else {
+                Double[] tmp;
+                if (municipality != null) {
+                    tmp = ServiceFactory.getPorblemService().getEvaluationByMunicipality(municipality);
+                } else {
+                    tmp = ServiceFactory.getPorblemService().getEvaluationByRegion(region);
+                }
+                ((JSONObject) result.get("_embedded")).put("problems_number", tmp[4]);
+                JSONObject rank = new JSONObject();
+                rank.put("S", tmp[0]);
+                rank.put("I", tmp[1]);
+                rank.put("C", tmp[2]);
+                rank.put("total", tmp[3]);
+                ((JSONObject) result.get("_embedded")).put("rank", rank);
+            }
+            res.type("application/hal+json");
+            return result.toJSONString();
+        });
+
+        Spark.get("/api/evaluation/regions", (req, res) -> {
+            JSONObject result = new JSONObject();
+            result.put("_links", new JSONObject());
+            ((JSONObject) result.get("_links")).put("self", new JSONObject());
+            ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put("href", req.uri());
+            result.put("_embedded", new JSONObject());
+            List<JSONObject> regions = new ArrayList<>();
+            
+            ProblemService problemService = ServiceFactory.getPorblemService();
+            for (Entry<String, Double[]> regionAndEvaluation: problemService.getEvaluationOfRegions().entrySet()) {
+                Double[] tmp = regionAndEvaluation.getValue();
+                JSONObject rank = new JSONObject();
+                rank.put("name", regionAndEvaluation.getKey());
+                rank.put("S", tmp[0]);
+                rank.put("I", tmp[1]);
+                rank.put("C", tmp[2]);
+                rank.put("total", tmp[3]);
+                rank.put("problems_number", (int) (double) tmp[4]);
+                regions.add(rank);
+            }
+            ((JSONObject) result.get("_embedded")).put("regions", regions);
+
+            res.type("application/hal+json");
+            return result.toJSONString();
+        });
+
+        Spark.get("/api/evaluation/municipalities", (req, res) -> {
+            JSONObject result = new JSONObject();
+            result.put("_links", new JSONObject());
+            ((JSONObject) result.get("_links")).put("self", new JSONObject());
+            ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put("href", req.uri());
+            result.put("_embedded", new JSONObject());
+            List<JSONObject> municipalities = new ArrayList<>();
+            
+            ProblemService problemService = ServiceFactory.getPorblemService();
+            for (Entry<String, Double[]> municipalityAndEvaluation: problemService.getEvaluationOfMunicipalities().entrySet()) {
+                Double[] tmp = municipalityAndEvaluation.getValue();
+                JSONObject rank = new JSONObject();
+                rank.put("name", municipalityAndEvaluation.getKey());
+                rank.put("S", tmp[0]);
+                rank.put("I", tmp[1]);
+                rank.put("C", tmp[2]);
+                rank.put("total", tmp[3]);
+                rank.put("problems_number", (int) (double) tmp[4]);
+                municipalities.add(rank);
+            }
+            ((JSONObject) result.get("_embedded")).put("municipalities", municipalities);
+
+            res.type("application/hal+json");
+            return result.toJSONString();
+        });
+
+        Spark.get("/api/evaluation/objects", (req, res) -> {
+            String firstCoordStr, secondCoordStr, type;
+            if (!req.body().isEmpty()) {
+                JSONObject requestBody = (JSONObject) new JSONParser().parse(req.body());
+                System.out.println("GET /api/evaluate/objects: RequestBody: " + requestBody);
+                firstCoordStr = (String) requestBody.get("firstCoord");
+                secondCoordStr = (String) requestBody.get("secondCoord");
+                type = (String) requestBody.get("type");
+            } else if (!req.queryParams().isEmpty()) {
+                System.out.println("GET /api/evaluate/objects: request query: " + req.queryString());
+                firstCoordStr = (String) req.queryParams("firstCoord");
+                secondCoordStr = (String) req.queryParams("secondCoord");
+                type = (String) req.queryParams("type");
+            } else {
+                System.out.println("GET /api/evaluate/polygon: No query or body params");
+                res.type("text/html");
+                return "<html><body><h1>Objects evaluation: no parameters are given</h1>"
+                        + "<p>Use this endpoint with <b>firstPoint</b>, <b>secondPoint</b> and "
+                        + "<b>type</b> parameters </p>"
+                        + "<p>For points use format \"latitude,longitude\". Type must be one of the: "
+                        + "<i>building. yard, maf, water, greenzone, uds</i></p>"
+                        + "<p>The result will be a list of coordinates and their evaluation results"
+                        + " (S, I, C and total value)</p></body></html>";
+            }
+
             JSONObject result = new JSONObject();
             result.put("_links", new JSONObject());
             ((JSONObject) result.get("_links")).put("self", new JSONObject());
@@ -329,39 +501,23 @@ public class App {
             
             List<Problem> problems = ServiceFactory.getPorblemService().getProblemsByFilter(new ProblemFilter().setCoords(firstCoordStr, secondCoordStr));
             ((JSONObject) result.get("_embedded")).put("problems_number", problems.size());
-            if (problems.size() == 0) {
+
+            JSONArray evaluations = new JSONArray();
+            for (Double[] sict: Utils.evaluateObjects(problems, type)) {
                 JSONObject rank = new JSONObject();
-                rank.put("S", null);
-                rank.put("I", null);
-                rank.put("C", null);
-                rank.put("total", null);
-                ((JSONObject) result.get("_embedded")).put("rank", rank);
-            } else {
-                String filename = java.util.UUID.randomUUID().toString();
-                try (CSVWriter csvWriter = new CSVWriter(new FileWriter(new File(filename + ".csv")))) {
-                    csvWriter.writeNext("ID,Название,Широта,Долгота,Подкатегория,Категория".split(","));
-                    for (Problem problem: problems) {
-                        csvWriter.writeNext(new String[]{problem.getId().toString(), problem.getName(), problem.getLatitude().toString(),
-                            problem.getLongitude().toString(), problem.getSubcategory(), problem.getCategory()});
-                    }
+                {
+                    JSONArray coordinates = new JSONArray();
+                    coordinates.add(sict[0]);
+                    coordinates.add(sict[1]);
+                    rank.put("coordinates", coordinates);
                 }
-    
-                Process p = Runtime.getRuntime().exec(new String[]{"Rscript", "polygon_evaluation.R", filename + ".csv"});
-                p.waitFor(15, TimeUnit.SECONDS);
-    
-                try (CSVReader reader = new CSVReader(new FileReader(new File(filename + "_output.csv")))) {
-                    reader.readNext();
-                    String[] tmp = reader.readNext();
-                    JSONObject rank = new JSONObject();
-                    rank.put("S", tmp[0]);
-                    rank.put("I", tmp[1]);
-                    rank.put("C", tmp[2]);
-                    rank.put("total", tmp[3]);
-                    ((JSONObject) result.get("_embedded")).put("rank", rank);
-                }
-                new File(filename + ".csv").delete();
-                new File(filename + "_output.csv").delete();
+                rank.put("S", sict[2]);
+                rank.put("I", sict[3]);
+                rank.put("C", sict[4]);
+                rank.put("total", sict[5]);
+                evaluations.add(rank);
             }
+            ((JSONObject) result.get("_embedded")).put("evaluations", evaluations);
             res.type("application/hal+json");
             return result.toJSONString();
         });

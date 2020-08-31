@@ -11,23 +11,24 @@ This is API server for getting probelms from postgres database based on data fro
 3. fill the database by data with the [script](../insert_to_db/insert_to_db.py)
 4. open terminal in cloned repository
 5. compile with `mvn compile assembly:single`
-6. install R and install `tidyverse` library (look at **R installation** section in case of problems)
-7. launch with `java -jar target/problemapi-2020-08-10-quickfix-jar-with-dependencies.jar`
+6. install R and libraries (`tidyverse`, `readr`) (look at **R installation** section in case of problems)
+7. copy or symlink R scripts to the directory of launching (`cp evaluation-model/*.R .`)
+8. launch with `java -jar target/problemapi-2020-08-31-jar-with-dependencies.jar`
 
 ## R installation
 
-You need to have R (r-base package) and "tidyverse" package installed to use /api/ranking endpoint. In case
-  of using without docker you can just have it with `R -e 'install.package("tidyverse")'` command, ensuring that
-  you have all of the dependencies (see _dockerfile_ and _download-build-lbs.sh_ in __ranking-model__ directory).  
+You need to have R (r-base package) and "tidyverse" package installed to use /api/evaluation endpoint. In case
+  of using without docker you can just have it with `R -e 'install.package(c("tidyverse", "readr"))'` command, ensuring that
+  you have all of the dependencies (see _dockerfile_ and _download-build-lbs.sh_ in __evaluation-model__ directory).  
 In case of using Docker you will need to run container which will build all of the needed libraries and then pass
-  them to the main container in build time.
+  them to the main container at its build time.
 
 1. open terminal in cloned repository
-2. launch `cd ranking-model && mkdir libs` to change the directory and create libs folder
+2. launch `cd evaluation-model && mkdir libs` to change the directory and create libs folder
 3. launch `docker build --tag build_libs . && docker run --name build_libs -v "$PWD/libs":/libs build_libs`
 4. launch `docker rm build_libs && docker rmi build_libs` to remove unnedeed container and image
 
-After that ./ranking-model/libs/build directory will contain suitable compiled libraries. You can delete folder after the
+After that ./evaluation-model/libs/build directory will contain suitable compiled libraries. You can delete folder after the
   building of the main container
 
 ## CLI Parameters
@@ -50,13 +51,13 @@ The same parameters can be configured with environment variables:
 * PROBLEMS_DB_USER - -U
 * PROBLEMS_DB_PASS - -W
 
-## Packing in Docker
+## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2020-08-31)
 
 1. open terminal in cloned repository
-2. build image with `docker build --tag kanootoko/digitalmodel_problems:2020-08-10-quickfix .`
+2. build image with `docker build --tag kanootoko/digitalmodel_problems:2020-08-31 .`
 3. run image with postgres server running on host machine on default port 5432
-    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-08-10-quickfix`
-    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-08-10-quickfix`  
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-08-31`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-08-31`  
        Ensure that:
         1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
         2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)
@@ -73,23 +74,28 @@ After the launch you can find api avaliable at localhost:port/ . In example give
 
 ### Endpoints
 
-At this moment there are 4 endpoints:
+At this moment there are some main endpoints:
 
 * **/api**: returns HAL description of API provided
 * **/api/problems/search** : takes parameters by query or inside the body as JSON. You can set _minDate_ and/or _maxDate_
     in format `YYYY-MM-DD`, _status_, _firstCoord_ and _secondCoord_ in format `latitude,longitude`, _category_, _subcategory_,
     _municipality_, _region_, _limit_. At least one parameter must be set.  
-  Returns a list of problems descriptions, coordinates and statuses corresponding to request, limited by 100000 by default.
+  Returns a list of problems descriptions, coordinates and statuses corresponding to request, limited by 100000 by default (limit=0 to turn limiting off).
     Also each of the entities has their link to get full information.
-* **/api/ranking/** : takes parameters by query or inside the body as JSON. You should set _firstCoord_ and _secondCoord_ in format
-    `latitude,longitude`.  
-  Returns 4 ranking results: safety, physical comfort, feelings comfort and total rank of given territory based on problems
 * **/api/problems/:problemID** : returns single problem information. It should not be used by id as it is, link should come from
   /problems/search result list.
+* **/api/evaluation/polygon** : takes parameters by query or inside the body as JSON. You should set _firstCoord_ and _secondCoord_ in format
+    `latitude,longitude`.  
+  Returns 4 evaluation results: safety, physical comfort, esthetic comfort and total evaluation value of given territory based on problems
+  * **/api/evaluation/municipalities** : returns polygon evaluation of all of the municipalities
+  * **/api/evaluation/regions** : returns polygon evaluation of all of the regions
+* **/api/evaluation/objects** : takes type of object to evaluate (building. yard, maf, water, greenzone, uds) and coordinates bounds, returns list
+  of evaluated objects with 4 evaluation results
 * **/api/groups/:labelName** : returns list of unique values in given label and number of problems having those values.
   It is used to get statuses, categories and subcategories.
 
-Also with no parameters URIs {/, /api/groups, /api/ranking and /api/problems/search} will return HTML with a bit of description
+Also with no parameters URIs {/, /api/groups, /api/evaluation/polygon, /api/evaluation/objects and /api/problems/search}
+  will return HTML with a bit of description
 
 ### Output format
 
@@ -234,13 +240,13 @@ Formats:
 * :groups_number, :groupSize - integer
 * :name, groupName - string
 
-#### /api/ranking
+#### /api/evaluation/polygon
 
 ```json
 {
     "_links": {
         "self": {
-            "href": "/api/ranking?<queryString>"
+            "href": "/api/evaluation/polygon?<queryString>"
         }
     },
     "_embedded": {
@@ -260,5 +266,103 @@ Formats:
 * :problems_number - integer
 * :total, :S, :C, :I - floating point number with precision of 4 digits after the point
 
-S - safety, C - physical comfort, C - feelings comfort, problems_number - number of problems
+S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
+  got by coordinates and used in calculations
+
+#### /api/evaluation/municipalities
+
+```json
+{
+    "_links": {
+        "self": {
+            "href": "/api/evaluation/municipalities"
+        }
+    },
+    "_embedded": {
+        "municipalities": [
+            {
+                "total": ":total",
+                "S": ":S",
+                "C": ":C",
+                "name": ":municipality_name",
+                "I": ":I",
+                "problems_number": ":problems_number"
+            }, <...>
+        ]
+    }
+}
+```
+
+Formats:
+
+* :municipality_name - string
+* :problems_number - integer
+* :total, :S, :C, :I - floating point number with precision of 4 digits after the point
+
+S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
+  got by coordinates and used in calculations
+
+#### /api/evaluation/regions
+
+```json
+{
+    "_links": {
+        "self": {
+            "href": "/api/evaluation/regions"
+        }
+    },
+    "_embedded": {
+        "municipalities": [
+            {
+                "total": ":total",
+                "S": ":S",
+                "C": ":C",
+                "name": ":region_name",
+                "I": ":I",
+                "problems_number": ":problems_number"
+            }, <...>
+        ]
+    }
+}
+```
+
+Formats:
+
+* :region_name - string
+* :problems_number - integer
+* :total, :S, :C, :I - floating point number with precision of 4 digits after the point
+
+S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
+  got by coordinates and used in calculations
+
+#### /api/evaluation/objects
+
+```json
+{
+    "_links": {
+        "self": {
+            "href": "/api/evaluation/objects?<queryString>"
+        }
+    },
+    "_embedded": {
+        "evaluations": [
+            {
+                "total": ":total",
+                "S": ":S",
+                "C": ":C",
+                "coordinates": [":latitude",":longitude"],
+                "I": ":I"
+            }, <...>
+        ]
+    }
+}
+```
+
+Formats:
+
+* :region_name - string
+* :problems_number - integer
+* :total, :S, :C, :I, :latitude, :longitude - floating point number with precision of 4 digits after the point
+
+S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
   got by coordinates and used in calculations

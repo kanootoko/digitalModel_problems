@@ -12,4 +12,8 @@ public interface ProblemRepository {
     public List<Problem> findProblemsByFilter(ProblemFilter pf);
     public Map<String, Integer> getGroupsSize(String labelName);
     public Problem findProblemByID(int problemID);
+    public Double[] getEvaluationByMunicipality(String municipalityName);
+    public Double[] getEvaluationByRegion(String regionName);
+    public void setEvaluationToMunicipaity(String municipalityName, double s, double i, double c, double total, int objects);
+    public void setEvaluationToRegion(String regionName, double s, double i, double c, double total, int objects);
 }

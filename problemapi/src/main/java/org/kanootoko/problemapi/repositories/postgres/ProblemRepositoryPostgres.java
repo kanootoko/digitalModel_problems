@@ -109,4 +109,82 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
         }
     }
 
+    @Override
+    public Double[] getEvaluationByMunicipality(String municipalityName) {
+        Connection conn = ConnectionManager.getConnection();
+        try {
+            PreparedStatement statement = conn.prepareStatement("SELECT s, i, c, total_value, objects_number from evaluation_municipalities where municipality_name = ?");
+            statement.setString(1, municipalityName);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (rs.next()) {
+                    return new Double[] {rs.getDouble(1), rs.getDouble(2), rs.getDouble(3), rs.getDouble(4), (double) (int) rs.getInt(5)};
+                } else {
+                    return new Double[] {0.0, 0.0, 0.0, 0.0, 0.0};
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    @Override
+    public Double[] getEvaluationByRegion(String regionName) {
+        Connection conn = ConnectionManager.getConnection();
+        try {
+            PreparedStatement statement = conn.prepareStatement("SELECT s, i, c, total_value, objects_number from evaluation_regions where region_name = ?");
+            statement.setString(1, regionName);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (rs.next()) {
+                    return new Double[] {rs.getDouble(1), rs.getDouble(2), rs.getDouble(3), rs.getDouble(4), (double) (int) rs.getInt(5)};
+                } else {
+                    return new Double[] {0.0, 0.0, 0.0, 0.0, 0.0};
+                }
+            } 
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    @Override
+    public void setEvaluationToMunicipaity(String municipalityName, double s, double i, double c, double total, int objects) {
+        Connection conn = ConnectionManager.getConnection();
+        try {
+            PreparedStatement statement = conn.prepareStatement(
+                    "INSERT INTO evaluation_municipalities (municipality_name, s, i, c, total_value, objects_number) values"
+                            + " (?, ?, ?, ?, ?, ?) ON CONFLICT (municipality_name) DO UPDATE SET s = excluded.s,"
+                            + " i = excluded.i, c = excluded.c, total_value = excluded.total_value, objects_number = excluded.objects_number");
+            statement.setString(1, municipalityName);
+            statement.setDouble(2, s);
+            statement.setDouble(3, i);
+            statement.setDouble(4, c);
+            statement.setDouble(5, total);
+            statement.setInt(6, objects);
+            statement.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void setEvaluationToRegion(String regionName, double s, double i, double c, double total, int objects) {
+        Connection conn = ConnectionManager.getConnection();
+        try {
+            PreparedStatement statement = conn.prepareStatement(
+                    "INSERT INTO evaluation_regions (region_name, s, i, c, total_value, objects_number) values"
+                            + " (?, ?, ?, ?, ?, ?) ON CONFLICT (region_name) DO UPDATE SET s = excluded.s,"
+                            + " i = excluded.i, c = excluded.c, total_value = excluded.total_value, objects_number = excluded.objects_number");
+            statement.setString(1, regionName);
+            statement.setDouble(2, s);
+            statement.setDouble(3, i);
+            statement.setDouble(4, c);
+            statement.setDouble(5, total);
+            statement.setInt(6, objects);
+            statement.execute();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
 }
