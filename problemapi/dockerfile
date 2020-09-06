@@ -1,9 +1,9 @@
 FROM openjdk:8-jre
-COPY ./evaluation-model/*.R /
 RUN mkdir /tmp/libs
 COPY ./evaluation-model/libs/build/*.tar.gz /tmp/libs/
 RUN apt-get update && apt-get install --no-install-recommends -y r-base=3.5.2-1 libxml2-dev 
 # libopenblas-base zlib1g-dev gcc-8-base libssl-dev libcurl4-openssl-dev
 RUN R CMD INSTALL /tmp/libs/*.tar.gz && rm -rf /tmp/libs/
+COPY ./evaluation-model/*.R /
 COPY ./target/problemapi-2020-09-06-jar-with-dependencies.jar /app.jar
 ENTRYPOINT [ "java",  "-jar", "/app.jar" ]
