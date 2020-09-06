@@ -1,9 +1,13 @@
 package org.kanootoko.problemapi;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Map.Entry;
 
 import org.apache.commons.cli.CommandLine;
@@ -29,6 +33,47 @@ public class App {
         int api_port = 80, db_port = 5432;
         String db_addr = "localhost", db_name = "problems", db_user = "postgres", db_pass = "postgres";
         boolean skip_evaluation = false;
+
+        // Getting properties from launch.properties
+
+        try (FileInputStream fis = new FileInputStream("launch.properties")) {
+            Properties props = new Properties();
+            props.load(fis);
+            if (props.containsKey("db_addr")) {
+                db_addr = props.getProperty("db_addr");
+            }
+            if (props.containsKey("db_name")) {
+                db_name = props.getProperty("db_name");
+            }
+            if (props.containsKey("db_user")) {
+                db_user = props.getProperty("db_user");
+            }
+            if (props.containsKey("db_pass")) {
+                db_pass = props.getProperty("db_pass");
+            }
+            if (props.containsKey("api_port")) {
+                try {
+                    api_port = Integer.parseInt(props.getProperty("api_port"));
+                } catch (NumberFormatException ex) {
+                    System.err.println("api_port value (" + props.getProperty("api_port") + ") is not an integer, ignoring");
+                }
+            }
+            if (props.containsKey("db_port")) {
+                try {
+                    db_port = Integer.parseInt(props.getProperty("db_port"));
+                } catch (NumberFormatException ex) {
+                    System.err.println("db_port value (" + props.getProperty("db_port") + ") is not an integer, ignoring");
+                }
+            }
+            if (props.containsKey("skip_evaluation") && !props.getProperty("skip_evaluation").equals("false") && !props.getProperty("skip_evaluation").equals("0")) {
+                skip_evaluation = true;
+            }
+        } catch (FileNotFoundException ex) {
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+
+        // Getting properties from environment variables
 
         Map<String, String> env = System.getenv();
         if (env.containsKey("PROBLEMS_API_PORT")) {
@@ -62,6 +107,8 @@ public class App {
         if (env.containsKey("PROBLEMS_SKIP_EVALUATION")) {
             skip_evaluation = true;
         }
+
+        // Getting properties from command line arguments
 
         Options options = new Options();
         options.addOption(
@@ -107,6 +154,9 @@ public class App {
             new HelpFormatter().printHelp("problems-api-server", options);
             System.exit(1);
         }
+
+        // Setting properties
+
         ConnectionManager.setDB_addr(db_addr);
         ConnectionManager.setDB_name(db_name);
         ConnectionManager.setDB_port(db_port);
@@ -123,6 +173,8 @@ public class App {
         } else {
             System.out.println("Evaluation skipped");
         }
+
+        // Configuring and launching server
 
         Spark.port(api_port);
 
@@ -146,7 +198,7 @@ public class App {
 
         // INFO BLOCK
 
-        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-08-31</h1>"
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-09-06</h1>"
                 + "<p>Set Accept header to include json or hal+json, and you will get api description in HAL format from this page</p>"
                 + "<ul><li><a href=/api/problems/search>Search problems API</a></li>"
                 + "<li><a href=/api/groups>Get groups API</a></li>"
@@ -157,7 +209,7 @@ public class App {
 
         Spark.get("/api", (req, res) -> {
             JSONObject result = new JSONObject();
-            result.put("version", "2020-08-31");
+            result.put("version", "2020-09-06");
             JSONObject links = new JSONObject();
 
             links.put("self", new JSONObject());

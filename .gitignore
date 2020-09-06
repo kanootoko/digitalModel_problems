@@ -5,11 +5,14 @@
 *.zip
 *.tar
 *.tar.gz
+*.backup
+launch.properties
 
-target/
-/test_api/
 .classpath
 .project
 .settings
 .mypy_cache
 .vscode
+target/
+test_api/
+problemapi/evaluation-model/libs

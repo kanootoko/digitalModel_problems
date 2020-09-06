@@ -13,7 +13,7 @@ This is API server for getting probelms from postgres database based on data fro
 5. compile with `mvn compile assembly:single`
 6. install R and libraries (`tidyverse`, `readr`) (look at **R installation** section in case of problems)
 7. copy or symlink R scripts to the directory of launching (`cp evaluation-model/*.R .`)
-8. launch with `java -jar target/problemapi-2020-08-31-jar-with-dependencies.jar`
+8. launch with `java -jar target/problemapi-2020-09-06-jar-with-dependencies.jar`
 
 ## R installation
 
@@ -31,33 +31,49 @@ In case of using Docker you will need to run container which will build all of t
 After that ./evaluation-model/libs/build directory will contain suitable compiled libraries. You can delete folder after the
   building of the main container
 
-## CLI Parameters
+## Configuration by launch.properties file
 
-* `-p,--port <int>` - port to run the api server \[default: _80_\]
-* `-H,--db_addr <str>` - address of the postgres with problems \[_localhost_\]
-* `-P,--db_port <str>` - port of the postgres with problems \[_5432_\]
-* `-N,--db_name <str>` - name of the postgres database with problems \[_problems_\]
-* `-U,--db_user <str>` - user name for database \[default: _postgres_\]
-* `-W,--db_pass <str>` - user password for database \[default: _postgres_\]
+You can configure application parameters by creating and editing file named __launch.properties__:
 
-## Environment parameters
+* `api_port=<int>` - port to run the api server \[default: _80_\]
+* `db_addr=<str>` - address of the postgres with problems \[_localhost_\]
+* `db_port=<int>` - port of the postgres with problems \[_5432_\]
+* `db_name=<str>` - name of the postgres database with problems \[_problems_\]
+* `db_user=<str>` - user name for database \[default: _postgres_\]
+* `db_pass=<str>` - user password for database \[default: _postgres_\]
+* `skip_evaluation=true` - skip calculation of regions and municipalities evaluation
 
-The same parameters can be configured with environment variables:
+## Configuration by environment variables
 
-* PROBLEMS_API_PORT - -p
-* PROBLEMS_DB_ADDR - -H
-* PROBLEMS_DB_PORT - -P
-* PROBLEMS_DB_NAME - -N
-* PROBLEMS_DB_USER - -U
-* PROBLEMS_DB_PASS - -W
+The same parameters can be configured with environment variables (overrides launch.properties configuration):
 
-## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2020-08-31)
+* PROBLEMS_API_PORT - api_port
+* PROBLEMS_DB_ADDR - db_addr
+* PROBLEMS_DB_PORT - db_port
+* PROBLEMS_DB_NAME - db_name
+* PROBLEMS_DB_USER - db_user
+* PROBLEMS_DB_PASS - db_pass
+* PROBLEMS_SKIP_EVALUATION - skip_evaluation
+
+## Configuration by CLI Parameters
+
+Command line arguments configuration is also avaliable (overrides environment variables configuration)
+
+* `-p,--port <int>` - api_port
+* `-H,--db_addr <str>` - db_addr
+* `-P,--db_port <int>` - db_port
+* `-N,--db_name <str>` - db_name
+* `-U,--db_user <str>` - db_user
+* `-W,--db_pass <str>` - db_pass
+* `-S,--skip_evaluation` - skip_evaluation
+
+## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2020-09-06)
 
 1. open terminal in cloned repository
-2. build image with `docker build --tag kanootoko/digitalmodel_problems:2020-08-31 .`
+2. build image with `docker build --tag kanootoko/digitalmodel_problems:2020-09-06 .`
 3. run image with postgres server running on host machine on default port 5432
-    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-08-31`
-    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-08-31`  
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-09-06`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-09-06`  
        Ensure that:
         1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
         2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)
