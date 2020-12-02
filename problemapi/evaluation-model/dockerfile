@@ -1,8 +1,8 @@
 # FROM r-base:3.5.2
 FROM debian:buster
 
-COPY ./download-build-libs.sh /
-
 RUN apt-get update && apt-get install --no-install-recommends -y gcc g++ make libblas-dev liblapack-dev gfortran r-base=3.5.2-1 libopenblas-base zlib1g-dev libxml2-dev libssl-dev libcurl4-openssl-dev gcc-8-base
+
+COPY ./download-build-libs.sh /
 
 ENTRYPOINT [ "/download-build-libs.sh" ]

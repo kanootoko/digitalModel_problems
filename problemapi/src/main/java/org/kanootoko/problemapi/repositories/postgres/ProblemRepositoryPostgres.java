@@ -25,7 +25,7 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
         PreparedStatement statement;
         try {
             statement = conn.prepareStatement(
-                    "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_X(Coordinates),"
+                    "select ID, OuterID, Name, District, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_X(Coordinates),"
                             + " ST_Y(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems as problem"
                             + " where problem.CreationDate >= (?) and problem.CreationDate <= (?) limit 100000");
             statement.setDate(1, java.sql.Date.valueOf(minDate));
@@ -50,11 +50,11 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
         PreparedStatement statement;
         try {
             statement = conn.prepareStatement(
-                    "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_Y(Coordinates),"
+                    "select ID, OuterID, Name, District, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_Y(Coordinates),"
                             + " ST_X(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems"
                             + pf.buildWhereString());
             // System.out.println(
-            // "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate,
+            // "select ID, OuterID, Name, District, Status, CreationDate, UpdateDate,
             // Description, UserName, UserID, ST_X(Coordinates),"
             // + " ST_Y(Coordinates), Address, Municipality, Reason, Category, Subcategory
             // from problems"
@@ -92,7 +92,7 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
     public Problem findProblemByID(int problemID) {
         Connection conn = ConnectionManager.getConnection();
         try (ResultSet rs = conn.createStatement().executeQuery(
-                "select ID, OuterID, Name, Region, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_Y(Coordinates),"
+                "select ID, OuterID, Name, District, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_Y(Coordinates),"
                         + " ST_X(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems where id = "
                         + problemID)) {
             if (rs.next()) {
@@ -119,7 +119,7 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
                 if (rs.next()) {
                     return new Double[] {rs.getDouble(1), rs.getDouble(2), rs.getDouble(3), rs.getDouble(4), (double) (int) rs.getInt(5)};
                 } else {
-                    return new Double[] {0.0, 0.0, 0.0, 0.0, 0.0};
+                    return new Double[] {null, null, null, null};
                 }
             }
         } catch (Exception e) {
@@ -129,16 +129,16 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
     }
 
     @Override
-    public Double[] getEvaluationByRegion(String regionName) {
+    public Double[] getEvaluationByDistrict(String districtName) {
         Connection conn = ConnectionManager.getConnection();
         try {
-            PreparedStatement statement = conn.prepareStatement("SELECT s, i, c, total_value, objects_number from evaluation_regions where region_name = ?");
-            statement.setString(1, regionName);
+            PreparedStatement statement = conn.prepareStatement("SELECT s, i, c, total_value, objects_number from evaluation_districts where district_name = ?");
+            statement.setString(1, districtName);
             try (ResultSet rs = statement.executeQuery()) {
                 if (rs.next()) {
                     return new Double[] {rs.getDouble(1), rs.getDouble(2), rs.getDouble(3), rs.getDouble(4), (double) (int) rs.getInt(5)};
                 } else {
-                    return new Double[] {0.0, 0.0, 0.0, 0.0, 0.0};
+                    return new Double[] {null, null, null, null};
                 }
             } 
         } catch (Exception e) {
@@ -168,14 +168,14 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
     }
 
     @Override
-    public void setEvaluationToRegion(String regionName, double s, double i, double c, double total, int objects) {
+    public void setEvaluationToDistrict(String districtName, double s, double i, double c, double total, int objects) {
         Connection conn = ConnectionManager.getConnection();
         try {
             PreparedStatement statement = conn.prepareStatement(
-                    "INSERT INTO evaluation_regions (region_name, s, i, c, total_value, objects_number) values"
-                            + " (?, ?, ?, ?, ?, ?) ON CONFLICT (region_name) DO UPDATE SET s = excluded.s,"
+                    "INSERT INTO evaluation_districts (district_name, s, i, c, total_value, objects_number) values"
+                            + " (?, ?, ?, ?, ?, ?) ON CONFLICT (district_name) DO UPDATE SET s = excluded.s,"
                             + " i = excluded.i, c = excluded.c, total_value = excluded.total_value, objects_number = excluded.objects_number");
-            statement.setString(1, regionName);
+            statement.setString(1, districtName);
             statement.setDouble(2, s);
             statement.setDouble(3, i);
             statement.setDouble(4, c);

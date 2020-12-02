@@ -41,25 +41,27 @@ public class ProblemServiceDefault implements ProblemService {
     }
 
     @Override
-    public Double[] getEvaluationByRegion(String regionName) {
-        return RepositoryFactory.getPorblemRepository().getEvaluationByRegion(regionName);
+    public Double[] getEvaluationByDistrict(String districtName) {
+        return RepositoryFactory.getPorblemRepository().getEvaluationByDistrict(districtName);
     }
 
     @Override
     public void evaluateMunicipalities() {
         ProblemRepository problemRepository = RepositoryFactory.getPorblemRepository();
         for (Entry<String, Integer> municipalityAndSize: getGroupsSize("municipality").entrySet()) {
+            System.out.println("\tEvaluating municipality: " + municipalityAndSize.getKey());
             Double[] sict = Utils.evaluatePolygon(problemRepository.findProblemsByFilter(new ProblemFilter().setMunicipality(municipalityAndSize.getKey()).setLimit(0)));
             problemRepository.setEvaluationToMunicipaity(municipalityAndSize.getKey(), sict[0], sict[1], sict[2], sict[3], municipalityAndSize.getValue());
         }
     }
 
     @Override
-    public void evaluateRegions() {
+    public void evaluateDistricts() {
         ProblemRepository problemRepository = RepositoryFactory.getPorblemRepository();
-        for (Entry<String, Integer> regionAndSize: getGroupsSize("region").entrySet()) {
-            Double[] sict = Utils.evaluatePolygon(problemRepository.findProblemsByFilter(new ProblemFilter().setRegion(regionAndSize.getKey()).setLimit(0)));
-            problemRepository.setEvaluationToRegion(regionAndSize.getKey(), sict[0], sict[1], sict[2], sict[3], regionAndSize.getValue());
+        for (Entry<String, Integer> districtAndSize: getGroupsSize("district").entrySet()) {
+            System.out.println("\tEvaluating district: " + districtAndSize.getKey());
+            Double[] sict = Utils.evaluatePolygon(problemRepository.findProblemsByFilter(new ProblemFilter().setDistrict(districtAndSize.getKey()).setLimit(0)));
+            problemRepository.setEvaluationToDistrict(districtAndSize.getKey(), sict[0], sict[1], sict[2], sict[3], districtAndSize.getValue());
         }
     }
 
@@ -74,11 +76,11 @@ public class ProblemServiceDefault implements ProblemService {
     }
 
     @Override
-    public Map<String, Double[]> getEvaluationOfRegions() {
+    public Map<String, Double[]> getEvaluationOfDistricts() {
         Map<String, Double[]> res = new HashMap<>();
-        for (Entry<String, Integer> regionAndSize: getGroupsSize("region").entrySet()) {
-            Double[] sict = getEvaluationByRegion(regionAndSize.getKey());
-            res.put(regionAndSize.getKey(), new Double[] {sict[0], sict[1], sict[2], sict[3], (double) (int) regionAndSize.getValue()});
+        for (Entry<String, Integer> districtAndSize: getGroupsSize("district").entrySet()) {
+            Double[] sict = getEvaluationByDistrict(districtAndSize.getKey());
+            res.put(districtAndSize.getKey(), new Double[] {sict[0], sict[1], sict[2], sict[3], (double) (int) districtAndSize.getValue()});
         }
         return res;
     }

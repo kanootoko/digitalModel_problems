@@ -9,7 +9,7 @@ public class Problem {
     private Integer id;
     private Integer outerID;
     private String name;
-    private String region;
+    private String district;
     private String status;
     private LocalDate creationDate;
     private LocalDate updateDate;
@@ -23,13 +23,13 @@ public class Problem {
     private String category;
     private String subcategory;
 
-    public Problem(Integer id, Integer outerID, String name, String region, String status, LocalDate creationDate,
+    public Problem(Integer id, Integer outerID, String name, String district, String status, LocalDate creationDate,
             LocalDate updateDate, String description, String userName, Integer userID, Coordinates coordinates,
             String address, String municipality, String reason, String category, String subcategory) {
         this.id = id;
         this.outerID = outerID;
         this.name = name;
-        this.region = region;
+        this.district = district;
         this.status = status;
         this.creationDate = creationDate;
         this.updateDate = updateDate;
@@ -56,8 +56,8 @@ public class Problem {
         return name;
     }
 
-    public String getRegion() {
-        return region;
+    public String getDistrict() {
+        return district;
     }
 
     public String getStatus() {
@@ -130,7 +130,7 @@ public class Problem {
         res.put("id", id);
         res.put("outerID", outerID);
         res.put("name", name);
-        res.put("region", region);
+        res.put("district", district);
         res.put("status", status);
         res.put("creationDate", creationDate.toString());
         res.put("updateDate", updateDate.toString());
@@ -151,10 +151,10 @@ public class Problem {
     @Override
     public String toString() {
         return String.format(
-                "Problem{ID: %d, OuterID: %d, Name: %s, Region: %s, Status: %s,"
+                "Problem{ID: %d, OuterID: %d, Name: %s, District: %s, Status: %s,"
                         + " CreationDate: %s, UpdateDate: %s, Description: %s, UserName: %s, UserID: %d,"
                         + " Coordinates: %s, Address: %s, Municipality: %s, Reason: %s, Category: %s, Subcategory: %s}",
-                id, outerID, name, region, status, creationDate, updateDate, description, userName, userID,
+                id, outerID, name, district, status, creationDate, updateDate, description, userName, userID,
                 coordinates.toString(), address, municipality, reason, category, subcategory);
     }
 }

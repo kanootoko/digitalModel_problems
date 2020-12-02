@@ -8,7 +8,7 @@ import org.kanootoko.problemapi.models.Coordinates;
 public class ProblemFilter {
     public static final int LIMIT_DEFAULT = 100000;
 
-    private String status, category, subcategory, municipality, region;
+    private String status, category, subcategory, municipality, district;
     private Coordinates firstCoord, secondCoord;
     private LocalDate minCreationDate, maxCreationDate;
     int limit;
@@ -18,7 +18,7 @@ public class ProblemFilter {
         category = null;
         subcategory = null;
         municipality = null;
-        region = null;
+        district = null;
         firstCoord = null;
         secondCoord = null;
         minCreationDate = null;
@@ -46,8 +46,8 @@ public class ProblemFilter {
         return this;
     }
 
-    public ProblemFilter setRegion(String region) {
-        this.region = region;
+    public ProblemFilter setDistrict(String district) {
+        this.district = district;
         return this;
     }
 
@@ -94,8 +94,8 @@ public class ProblemFilter {
         return municipality;
     }
 
-    public String getRegion() {
-        return region;
+    public String getDistrict() {
+        return district;
     }
 
     public Coordinates getFirstCoord() {
@@ -136,7 +136,7 @@ public class ProblemFilter {
 
     public boolean isNulled() {
         return status == null && category == null && subcategory == null && firstCoord == null && secondCoord == null
-                && minCreationDate == null && maxCreationDate == null && municipality == null && region == null;
+                && minCreationDate == null && maxCreationDate == null && municipality == null && district == null;
     }
 
     public boolean isDefault() {
@@ -156,7 +156,7 @@ public class ProblemFilter {
         count = addArgument(count, sb, "category", "=", category);
         count = addArgument(count, sb, "subcategory", "=", subcategory);
         count = addArgument(count, sb, "municipality", "=", municipality);
-        count = addArgument(count, sb, "region", "=", region);
+        count = addArgument(count, sb, "district", "=", district);
         if (firstCoord != null && secondCoord != null) {
             if (count == 0) {
                 sb.append(" ");
@@ -205,8 +205,8 @@ public class ProblemFilter {
                 statement.setString(k, municipality);
                 k++;
             }
-            if (region != null) {
-                statement.setString(k, region);
+            if (district != null) {
+                statement.setString(k, district);
                 k++;
             }
             if (minCreationDate != null) {

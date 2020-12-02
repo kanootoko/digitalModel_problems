@@ -13,7 +13,7 @@ This is API server for getting probelms from postgres database based on data fro
 5. compile with `mvn compile assembly:single`
 6. install R and libraries (`tidyverse`, `readr`) (look at **R installation** section in case of problems)
 7. copy or symlink R scripts to the directory of launching (`cp evaluation-model/*.R .`)
-8. launch with `java -jar target/problemapi-2020-09-06-jar-with-dependencies.jar`
+8. launch with `java -jar target/problemapi-2020-12-02-jar-with-dependencies.jar`
 
 ## R installation
 
@@ -25,8 +25,9 @@ In case of using Docker you will need to run container which will build all of t
 
 1. open terminal in cloned repository
 2. launch `cd evaluation-model && mkdir libs` to change the directory and create libs folder
-3. launch `docker build --tag build_libs . && docker run --name build_libs -v "$PWD/libs":/libs build_libs`
-4. launch `docker rm build_libs && docker rmi build_libs` to remove unnedeed container and image
+3. Make sure that download-build-libs.sh has LF line endings (withour \r symbols)
+4. launch `docker build --tag build_libs . && docker run --name build_libs -v "$PWD/libs":/libs build_libs`
+5. launch `docker rm build_libs && docker rmi build_libs` to remove unnedeed container and image
 
 After that ./evaluation-model/libs/build directory will contain suitable compiled libraries. You can delete folder after the
   building of the main container
@@ -41,7 +42,7 @@ You can configure application parameters by creating and editing file named __la
 * `db_name=<str>` - name of the postgres database with problems \[_problems_\]
 * `db_user=<str>` - user name for database \[default: _postgres_\]
 * `db_pass=<str>` - user password for database \[default: _postgres_\]
-* `skip_evaluation=true` - skip calculation of regions and municipalities evaluation
+* `skip_evaluation=true` - skip calculation of districts and municipalities evaluation
 
 ## Configuration by environment variables
 
@@ -67,13 +68,13 @@ Command line arguments configuration is also avaliable (overrides environment va
 * `-W,--db_pass <str>` - db_pass
 * `-S,--skip_evaluation` - skip_evaluation
 
-## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2020-09-06)
+## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2020-12-02)
 
 1. open terminal in cloned repository
-2. build image with `docker build --tag kanootoko/digitalmodel_problems:2020-09-06 .`
+2. build image with `docker build --tag kanootoko/digitalmodel_problems:2020-12-02 .`
 3. run image with postgres server running on host machine on default port 5432
-    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-09-06`
-    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-09-06`  
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-12-02`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-12-02`  
        Ensure that:
         1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
         2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)
@@ -95,18 +96,18 @@ At this moment there are some main endpoints:
 * **/api**: returns HAL description of API provided
 * **/api/problems/search** : takes parameters by query or inside the body as JSON. You can set _minDate_ and/or _maxDate_
     in format `YYYY-MM-DD`, _status_, _firstCoord_ and _secondCoord_ in format `latitude,longitude`, _category_, _subcategory_,
-    _municipality_, _region_, _limit_. At least one parameter must be set.  
+    _municipality_, _district_, _limit_. At least one parameter must be set.  
   Returns a list of problems descriptions, coordinates and statuses corresponding to request, limited by 100000 by default (limit=0 to turn limiting off).
     Also each of the entities has their link to get full information.
 * **/api/problems/:problemID** : returns single problem information. It should not be used by id as it is, link should come from
   /problems/search result list.
 * **/api/evaluation/polygon** : takes parameters by query or inside the body as JSON. You should set _firstCoord_ and _secondCoord_ in format
-    `latitude,longitude`.  
+    `latitude,longitude`, or _municipality_ or _district_ parameter. You can also set _minDate_ and/or _maxDate_ parameter for polygon given by coordinates.  
   Returns 4 evaluation results: safety, physical comfort, esthetic comfort and total evaluation value of given territory based on problems
   * **/api/evaluation/municipalities** : returns polygon evaluation of all of the municipalities
-  * **/api/evaluation/regions** : returns polygon evaluation of all of the regions
+  * **/api/evaluation/districts** : returns polygon evaluation of all of the districts
 * **/api/evaluation/objects** : takes type of object to evaluate (building. yard, maf, water, greenzone, uds) and coordinates bounds, returns list
-  of evaluated objects with 4 evaluation results
+  of evaluated objects with 4 evaluation results. You can also set _minDate_ and/or _maxDate_ parameter
 * **/api/groups/:labelName** : returns list of unique values in given label and number of problems having those values.
   It is used to get statuses, categories and subcategories.
 
@@ -119,29 +120,45 @@ Also with no parameters URIs {/, /api/groups, /api/evaluation/polygon, /api/eval
 
 ```json
 {
-    "_links": {
-        "regions": {
-            "href": "/api/groups/region"
-        },
-        "problems-search": {
-            "templated": true,
-            "href": "/api/problems/search?<queryString>"
-        },
-        "self": "/api",
-        "statuses": {
-            "href": "/api/groups/status"
-        },
-        "categories": {
-            "href": "/api/groups/category"
-        },
-        "subcategories": {
-            "href": "/api/groups/subcategory"
-        },
-        "munitipalities": {
-            "href": "/api/groups/municipality"
-        }
+  "_links": {
+    "evaluation-municipalities": {
+      "href": "/api/evaluation/municipalities"
     },
-    "version": ":version"
+    "problems-search": {
+      "templated": true,
+      "href": "/api/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,status,municipality,district,limit}"
+    },
+    "evaluation-objects": {
+      "templated": true,
+      "href": "/api/evaluation/objects{?firstCoord,secondCoord,type}"
+    },
+    "districts": {
+      "href": "/api/groups/district"
+    },
+    "self": {
+      "href": "/api/"
+    },
+    "statuses": {
+      "href": "/api/groups/status"
+    },
+    "evaluation-polygon": {
+      "templated": true,
+      "href": "/api/evaluation/polygon{?minDate,maxDate,firstCoord,secondCoord,municipality,district}"
+    },
+    "evaluation-districts": {
+      "href": "/api/evaluation/districts"
+    },
+    "categories": {
+      "href": "/api/groups/category"
+    },
+    "subcategories": {
+      "href": "/api/groups/subcategory"
+    },
+    "munitipalities": {
+      "href": "/api/groups/municipality"
+    }
+  },
+  "version": "2020-12-02"
 }
 ```
 
@@ -211,7 +228,7 @@ Formats:
         "name": ":name",
         "outerID": ":outerID",
         "id": ":id",
-        "region": ":region",
+        "district": ":district",
         "category": ":category",
         "subcategory": ":subcategory",
         "status": ":status"
@@ -221,7 +238,7 @@ Formats:
 
 Formats:
 
-* :reason, :municipality, :description, :userName, :name, :region, :category, :subcategory, :status - string
+* :reason, :municipality, :description, :userName, :name, :district, :category, :subcategory, :status - string
 * :address - string, can be empty
 * :creationDate, :updateDate - string representing date in format "YYYY-MM-DD"
 * :problemID, :outerID - integer
@@ -229,7 +246,7 @@ Formats:
 
 #### /api/groups/:labelName
 
-:labelName should be one of the ("status", "category", "subcategory", "municipality", "region").
+:labelName should be one of the ("status", "category", "subcategory", "municipality", "district").
   Getting groups of other database labels is possible, but not recommended
 
 ```json
@@ -267,10 +284,10 @@ Formats:
     },
     "_embedded": {
         "rank": {
-            "total": ":total",
             "S": ":S",
+            "I": ":I",
             "C": ":C",
-            "I": ":I"
+            "total": ":total"
         },
         "problems_number": ":problems_number"
     }
@@ -279,72 +296,6 @@ Formats:
 
 Formats:
 
-* :problems_number - integer
-* :total, :S, :C, :I - floating point number with precision of 4 digits after the point
-
-S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
-  got by coordinates and used in calculations
-
-#### /api/evaluation/municipalities
-
-```json
-{
-    "_links": {
-        "self": {
-            "href": "/api/evaluation/municipalities"
-        }
-    },
-    "_embedded": {
-        "municipalities": [
-            {
-                "total": ":total",
-                "S": ":S",
-                "C": ":C",
-                "name": ":municipality_name",
-                "I": ":I",
-                "problems_number": ":problems_number"
-            }, <...>
-        ]
-    }
-}
-```
-
-Formats:
-
-* :municipality_name - string
-* :problems_number - integer
-* :total, :S, :C, :I - floating point number with precision of 4 digits after the point
-
-S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
-  got by coordinates and used in calculations
-
-#### /api/evaluation/regions
-
-```json
-{
-    "_links": {
-        "self": {
-            "href": "/api/evaluation/regions"
-        }
-    },
-    "_embedded": {
-        "municipalities": [
-            {
-                "total": ":total",
-                "S": ":S",
-                "C": ":C",
-                "name": ":region_name",
-                "I": ":I",
-                "problems_number": ":problems_number"
-            }, <...>
-        ]
-    }
-}
-```
-
-Formats:
-
-* :region_name - string
 * :problems_number - integer
 * :total, :S, :C, :I - floating point number with precision of 4 digits after the point
 
@@ -363,11 +314,46 @@ S - safety, C - physical comfort, I - estetic comfort, problems_number - number 
     "_embedded": {
         "evaluations": [
             {
-                "total": ":total",
                 "S": ":S",
+                "I": ":I",
                 "C": ":C",
-                "coordinates": [":latitude",":longitude"],
-                "I": ":I"
+                "total": ":total",
+                "coordinates": [":latitude",":longitude"]
+            },
+            <...>
+        ],
+        "problems_number": ":problems_number"
+    }
+}
+```
+
+Formats:
+
+* :district_name - string
+* :problems_number - integer
+* :total, :S, :C, :I, :latitude, :longitude - floating point number with precision of 4 digits after the point
+
+S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
+  got by coordinates and used in calculations
+
+#### /api/evaluation/municipalities
+
+```json
+{
+    "_links": {
+        "self": {
+            "href": "/api/evaluation/municipalities"
+        }
+    },
+    "_embedded": {
+        "municipalities": [
+            {
+                "name": ":municipality_name",
+                "S": ":S",
+                "I": ":I",
+                "C": ":C",
+                "total": ":total",
+                "problems_number": ":problems_number"
             }, <...>
         ]
     }
@@ -376,9 +362,42 @@ S - safety, C - physical comfort, I - estetic comfort, problems_number - number 
 
 Formats:
 
-* :region_name - string
+* :municipality_name - string
 * :problems_number - integer
-* :total, :S, :C, :I, :latitude, :longitude - floating point number with precision of 4 digits after the point
+* :total, :S, :C, :I - floating point number with precision of 4 digits after the point
+
+S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
+  got by coordinates and used in calculations
+
+#### /api/evaluation/districts
+
+```json
+{
+    "_links": {
+        "self": {
+            "href": "/api/evaluation/districts"
+        }
+    },
+    "_embedded": {
+        "districts": [
+            {
+                "S": ":S",
+                "I": ":I",
+                "C": ":C",
+                "total": ":total",
+                "name": ":district_name",
+                "problems_number": ":problems_number"
+            }, <...>
+        ]
+    }
+}
+```
+
+Formats:
+
+* :district_name - string
+* :problems_number - integer
+* :total, :S, :C, :I - floating point number with precision of 4 digits after the point
 
 S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
   got by coordinates and used in calculations
