@@ -125,6 +125,18 @@ public class Problem {
     }
 
     @SuppressWarnings("unchecked")
+    public JSONObject getLinksExtended() {
+        JSONObject res = getLinks();
+        if (id > 1) {
+            res.put("prev", new JSONObject());
+            ((JSONObject) res.get("prev")).put("href", "/api/problems/" + (id - 1));
+        }
+        res.put("next", new JSONObject());
+        ((JSONObject) res.get("next")).put("href", "/api/problems/" + (id + 1));
+        return res;
+    }
+
+    @SuppressWarnings("unchecked")
     public JSONObject toJSON() {
         JSONObject res = new JSONObject();
         res.put("id", id);
