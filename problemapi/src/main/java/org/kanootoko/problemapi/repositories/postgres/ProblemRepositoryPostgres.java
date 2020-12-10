@@ -4,7 +4,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,31 +18,6 @@ import org.kanootoko.problemapi.utils.ProblemFilter;
 public class ProblemRepositoryPostgres implements ProblemRepository {
 
     @Override
-    public List<Problem> findProblemsByCreationDate(LocalDate minDate, LocalDate maxDate) {
-        List<Problem> problems = new ArrayList<>();
-        Connection conn = ConnectionManager.getConnection();
-        PreparedStatement statement;
-        try {
-            statement = conn.prepareStatement(
-                    "select ID, OuterID, Name, District, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_X(Coordinates),"
-                            + " ST_Y(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems as problem"
-                            + " where problem.CreationDate >= (?) and problem.CreationDate <= (?) limit 100000");
-            statement.setDate(1, java.sql.Date.valueOf(minDate));
-            statement.setDate(2, java.sql.Date.valueOf(maxDate));
-            ResultSet rs = statement.executeQuery();
-            while (rs.next()) {
-                problems.add(new Problem(rs.getInt(1), rs.getInt(2), rs.getString(3), rs.getString(4), rs.getString(5),
-                        rs.getDate(6).toLocalDate(), rs.getDate(7).toLocalDate(), rs.getString(8), rs.getString(9),
-                        rs.getInt(10), new Coordinates(rs.getDouble(11), rs.getDouble(12)), rs.getString(13),
-                        rs.getString(14), rs.getString(15), rs.getString(16), rs.getString(17)));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return problems;
-    }
-
-    @Override
     public List<Problem> findProblemsByFilter(ProblemFilter pf) {
         List<Problem> problems = new ArrayList<>();
         Connection conn = ConnectionManager.getConnection();
@@ -53,22 +27,25 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
                     "select ID, OuterID, Name, District, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_Y(Coordinates),"
                             + " ST_X(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems"
                             + pf.buildWhereString());
-            // System.out.println(
-            // "select ID, OuterID, Name, District, Status, CreationDate, UpdateDate,
-            // Description, UserName, UserID, ST_X(Coordinates),"
-            // + " ST_Y(Coordinates), Address, Municipality, Reason, Category, Subcategory
-            // from problems"
-            // + pf.buildWhereString());
             pf.addParameters(statement);
-            ResultSet rs = statement.executeQuery();
-            while (rs.next()) {
-                problems.add(new Problem(rs.getInt(1), rs.getInt(2), rs.getString(3), rs.getString(4), rs.getString(5),
-                        rs.getDate(6).toLocalDate(), rs.getDate(7).toLocalDate(), rs.getString(8), rs.getString(9),
-                        rs.getInt(10), new Coordinates(rs.getDouble(11), rs.getDouble(12)), rs.getString(13),
-                        rs.getString(14), rs.getString(15), rs.getString(16), rs.getString(17)));
+            try {
+                ResultSet rs = statement.executeQuery();
+                while (rs.next()) {
+                    problems.add(new Problem(rs.getInt(1), rs.getInt(2), rs.getString(3), rs.getString(4), rs.getString(5),
+                            rs.getDate(6).toLocalDate(), rs.getDate(7).toLocalDate(), rs.getString(8), rs.getString(9),
+                            rs.getInt(10), new Coordinates(rs.getDouble(11), rs.getDouble(12)), rs.getString(13),
+                            rs.getString(14), rs.getString(15), rs.getString(16), rs.getString(17)));
+                }
+            } catch (Exception e) {
+                System.out.println(
+                    "select ID, OuterID, Name, District, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_X(Coordinates),"
+                    + " ST_Y(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems"
+                    + pf.buildWhereString());
+                throw e;
             }
         } catch (SQLException e) {
             e.printStackTrace();
+            throw new RuntimeException(e);
         }
         return problems;
     }
@@ -84,6 +61,7 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
             }
         } catch (SQLException e) {
             e.printStackTrace();
+            throw new RuntimeException(e);
         }
         return res;
     }

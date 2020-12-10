@@ -13,7 +13,7 @@ This is API server for getting probelms from postgres database based on data fro
 5. compile with `mvn compile assembly:single`
 6. install R and libraries (`tidyverse`, `readr`) (look at **R installation** section in case of problems)
 7. copy or symlink R scripts to the directory of launching (`cp evaluation-model/*.R .`)
-8. launch with `java -jar target/problemapi-2020-12-07-jar-with-dependencies.jar`
+8. launch with `java -jar target/problemapi-2020-12-10-jar-with-dependencies.jar`
 
 ## R installation
 
@@ -68,13 +68,13 @@ Command line arguments configuration is also avaliable (overrides environment va
 * `-W,--db_pass <str>` - db_pass
 * `-S,--skip_evaluation` - skip_evaluation
 
-## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2020-12-07)
+## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2020-12-10)
 
 1. open terminal in cloned repository
-2. build image with `docker build --tag kanootoko/digitalmodel_problems:2020-12-07 .`
+2. build image with `docker build --tag kanootoko/digitalmodel_problems:2020-12-10 .`
 3. run image with postgres server running on host machine on default port 5432
-    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-12-07`
-    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-12-07`  
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-12-10`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-12-10`  
        Ensure that:
         1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
         2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)
@@ -101,13 +101,15 @@ At this moment there are some main endpoints:
     Also each of the entities has their link to get full information.
 * **/api/problems/:problemID** : returns single problem information. It should not be used by id as it is, link should come from
   /problems/search result list.
-* **/api/evaluation/polygon** : takes parameters by query or inside the body as JSON. You should set _firstCoord_ and _secondCoord_ in format
-    `latitude,longitude`, or _municipality_ or _district_ parameter. You can also set _minDate_ and/or _maxDate_ parameter for polygon given by coordinates.  
+* **/api/evaluation/polygon** : takes parameters by query or inside the body as JSON. You can set _location_
+  parameter (it can be district, municipality, two points to define a square on the map (format lat1,lon1;lat2,lon2) or geojson).
+  You can also set _minDate_ and/or _maxDate_ and limit (maximal number of problems to evaluate, default is 100000) parameters.  
   Returns 4 evaluation results: safety, physical comfort, esthetic comfort and total evaluation value of given territory based on problems
   * **/api/evaluation/municipalities** : returns polygon evaluation of all of the municipalities
   * **/api/evaluation/districts** : returns polygon evaluation of all of the districts
-* **/api/evaluation/objects** : takes type of object to evaluate (building. yard, maf, water, greenzone, uds) and coordinates bounds, returns list
-  of evaluated objects with 4 evaluation results. You can also set _minDate_ and/or _maxDate_ parameter
+* **/api/evaluation/objects** : takes type of object to evaluate (building. yard, maf, water, greenzone, uds) and _location_ parameter the
+  You can also set _minDate_ and/or _maxDate_ parameters and limit value (maximal number of problems to evaluate, default is 100000).  
+  Returns a list of evaluated objects with coordinates and 4 evaluation results.
 * **/api/groups/:labelName** : returns list of unique values in given label and number of problems having those values.
   It is used to get statuses, categories and subcategories.
 
@@ -123,18 +125,18 @@ Also with no parameters URIs {/, /api/groups, /api/evaluation/polygon, /api/eval
   "_links": {
     "problems-search": {
       "templated": true,
-      "href": "/api/problems/search{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,status,municipality,district,limit}"
+      "href": "/api/problems/search{?minDate,maxDate,location,category,subcategory,status,municipality,district,limit}"
     },
     "first-problem": {
       "href": "/api/problems/1"
     },
     "evaluation-polygon": {
       "templated": true,
-      "href": "/api/evaluation/polygon/{?minDate,maxDate,firstCoord,secondCoord,target}"
+      "href": "/api/evaluation/polygon/{?minDate,maxDate,location,limit}"
     },
     "evaluation-objects": {
       "templated": true,
-      "href": "/api/evaluation/objects{?firstCoord,secondCoord,type}"
+      "href": "/api/evaluation/objects{?minDate,maxDate,location,type,limit}"
     },
     "evaluation-districts": {
       "href": "/api/evaluation/districts/"
@@ -161,7 +163,7 @@ Also with no parameters URIs {/, /api/groups, /api/evaluation/polygon, /api/eval
       "href": "/api/"
     }
   },
-  "version": "2020-12-07"
+  "version": "2020-12-10"
 }
 ```
 

@@ -1,6 +1,5 @@
 package org.kanootoko.problemapi.services.defaults;
 
-import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,11 +13,6 @@ import org.kanootoko.problemapi.utils.RepositoryFactory;
 import org.kanootoko.problemapi.utils.Utils;
 
 public class ProblemServiceDefault implements ProblemService {
-
-    @Override
-    public List<Problem> getProblemsByCreationDate(LocalDate minDate, LocalDate maxDate) {
-        return RepositoryFactory.getPorblemRepository().findProblemsByCreationDate(minDate, maxDate);
-    }
 
     @Override
     public List<Problem> getProblemsByFilter(ProblemFilter pf) {

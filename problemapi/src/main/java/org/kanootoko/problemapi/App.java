@@ -39,7 +39,7 @@ public class App {
     @SuppressWarnings("unchecked")
     private static String apiDefinition(Request req, Response res) {
         JSONObject result = new JSONObject();
-        result.put("version", "2020-12-07");
+        result.put("version", "2020-12-10");
         JSONObject links = new JSONObject();
 
         links.put("self", new JSONObject());
@@ -47,7 +47,7 @@ public class App {
 
         links.put("problems-search", new JSONObject());
         ((JSONObject) links.get("problems-search"))
-            .put("href", "/api/problems/search/{?minDate,maxDate,firstCoord,secondCoord,category,subcategory,status,municipality,district,limit}");
+            .put("href", "/api/problems/search/{?minDate,maxDate,location,category,subcategory,status,municipality,district,limit}");
         ((JSONObject) links.get("problems-search")).put("templated", true);
         
         links.put("first-problem", new JSONObject());
@@ -55,12 +55,12 @@ public class App {
 
         links.put("evaluation-polygon", new JSONObject());
         ((JSONObject) links.get("evaluation-polygon"))
-            .put("href", "/api/evaluation/polygon/{?minDate,maxDate,firstCoord,secondCoord,target}");
+            .put("href", "/api/evaluation/polygon/{?minDate,maxDate,location,limit}");
         ((JSONObject) links.get("evaluation-polygon")).put("templated", true);
 
         links.put("evaluation-objects", new JSONObject());
         ((JSONObject) links.get("evaluation-objects"))
-            .put("href", "/api/evaluation/objects/{?firstCoord,secondCoord,type}");
+            .put("href", "/api/evaluation/objects/{?minDate,maxDate,location,type,limit}");
         ((JSONObject) links.get("evaluation-objects")).put("templated", true);
 
         links.put("evaluation-districts", new JSONObject());
@@ -91,8 +91,8 @@ public class App {
 
     @SuppressWarnings("unchecked")
     private static String searchProblems(Request req, Response res) {
-        String minDateStr, maxDateStr;
-        String firstCoordStr, secondCoordStr;
+        String minDateStr = null, maxDateStr = null;
+        String location = null;
         ProblemFilter pf = new ProblemFilter();
         if (!req.body().isEmpty()) {
             JSONObject requestBody;
@@ -105,37 +105,48 @@ public class App {
             System.out.println("GET /api/problems/search: RequestBody: " + requestBody);
             minDateStr = (String) requestBody.get("minDate");
             maxDateStr = (String) requestBody.get("maxDate");
-            firstCoordStr = (String) requestBody.get("firstCoord");
-            secondCoordStr = (String) requestBody.get("secondCoord");
             pf.setCategory((String) requestBody.get("category"));
             pf.setSubcategory((String) requestBody.get("subcategory"));
-            pf.setMunicipality((String) requestBody.get("municipality"));
-            pf.setDistrict((String) requestBody.get("district"));
             pf.setStatus((String) requestBody.get("status"));
+            location = (String) requestBody.get("location");
             if (requestBody.containsKey("limit")) {
                 pf.setLimit(Integer.parseInt((String) requestBody.get("limit")));
             }
-        } else if (!req.queryParams().isEmpty()) {
+        }
+        if (!req.queryParams().isEmpty()) {
             System.out.println("GET /api/problems/search: request query: " + req.queryString());
-            minDateStr = req.queryParams("minDate");
-            maxDateStr = req.queryParams("maxDate");
-            firstCoordStr = (String) req.queryParams("firstCoord");
-            secondCoordStr = (String) req.queryParams("secondCoord");
-            pf.setCategory((String) req.queryParams("category"));
-            pf.setSubcategory((String) req.queryParams("subcategory"));
-            pf.setMunicipality((String) req.queryParams("municipality"));
-            pf.setDistrict((String) req.queryParams("district"));
-            pf.setStatus((String) req.queryParams("status"));
-            if (req.queryParams("limit") != null) {
+            if (req.queryParams().contains("minDate")) {
+                minDateStr = req.queryParams("minDate");
+            }
+            if (req.queryParams().contains("maxDate")) {
+                maxDateStr = req.queryParams("maxDate");
+            }
+            if (req.queryParams().contains("category")) {
+                pf.setCategory((String) req.queryParams("category"));
+            }
+            if (req.queryParams().contains("subcategory")) {
+                pf.setSubcategory((String) req.queryParams("subcategory"));
+            }
+            if (req.queryParams().contains("status")) {
+                pf.setStatus((String) req.queryParams("status"));
+            }
+            if (req.queryParams().contains("limit")) {
                 pf.setLimit(Integer.parseInt(req.queryParams("limit")));
             }
-        } else {
+        } 
+        if (req.body().isEmpty() && req.queryParams().isEmpty()) {
             System.out.println("GET /api/problems/search: No query or body params");
             res.type("text/html");
             return "<html><h1>Problems search: no parameters are given</h1>"
-                    + "<p>Use this endpoint with <b>minDate</b> and/or <b>maxDate</b>, "
-                    + "<b>firstPoint</b> and <b>secondPoint</b>, <b>status</b>, <b>category</b>,"
-                    + "<b>subcategory</b>, <b>municipality</b>, <b>district</b>, <b>limit</b> parameters</p>"
+                    + "<p><p>Use this endpoint with <b>limit</b> (optional, default=" + ProblemFilter.LIMIT_DEFAULT
+                    + "), <b>minDate</b> (optional), <b>maxDate</b> (optional), <b>status</b> (optional),"
+                    + " <b>category</b> (optional), <b>subcategory</b> (optional) "
+                    + " and <b>location</b> (optional) parameters </p>"
+                    + "<p>Possible formats for <b>location</b> parameter:"
+                    + "<ul><li>\"latitude1,longitude1;latitude2,longitude2\" for a pair of coordinates to define a square on a map</li>"
+                    + "<li>\"municipality_name\" for a municipality (see the list at /api/groups/municipality)</li>"
+                    + "<li>\"district_name\" for a district (see the list at /api/groups/district)</li>"
+                    + "<li>(geojson) for a polygon on a map</li></ul></p>"
                     + "<p>For points use format \"latitude,longitude\", for dates - \"YYYY-MM-DD\"</p>"
                     + "<p>The result will be a list of problems, coordinates in format of array [latitude, longitude]</p>"
                     + "</body></html>";
@@ -144,18 +155,34 @@ public class App {
             if (minDateStr != null) {
                 pf.setMinCreationDate(LocalDate.parse(minDateStr));
             }
+        } catch (Exception e) {
+            res.status(400);
+            res.type("application/json");
+            return "{\"error\": \"minDate is not a valid date (use format YYYY-MM-DD)\"}";
+        }
+        try {
             if (maxDateStr != null) {
                 pf.setMaxCreationDate(LocalDate.parse(maxDateStr));
             }
         } catch (Exception e) {
-            pf.setMinCreationDate(null).setMaxCreationDate(null);
-            e.printStackTrace();
+            res.status(400);
+            res.type("application/json");
+            return "{\"error\": \"maxDate is not a valid date (use format YYYY-MM-DD)\"}";
         }
-        if (firstCoordStr != null && secondCoordStr != null) {
-            try {
-                pf.setCoords(firstCoordStr, secondCoordStr);
-            } catch (Exception e) {
-                e.printStackTrace();
+        if (location != null) {
+            if (location.matches("^\\d+(\\.\\d+)?,\\d+(\\.\\d+)?;\\d+(\\.\\d+)?,\\d+(\\.\\d+)?$")) {
+                String[] coordsPair = location.split(";");
+                pf.setCoords(coordsPair[0], coordsPair[1]);
+            } else if (location.startsWith("{")) {
+                pf.setGeoJSON(location);
+            } else if (districts.contains(location)) {
+                pf.setDistrict(location);
+            } else if (municipalities.contains(location)) {
+                pf.setMunicipality(location);
+            } else {
+                res.status(400);
+                res.type("application/json");
+                return "{\"error\": \"location (" + location + ") is not a municipality or district\"}";
             }
         }
 
@@ -226,42 +253,71 @@ public class App {
 
     @SuppressWarnings("unchecked")
     private static String evaluationPolygon(Request req, Response res) {
-        String minDateStr, maxDateStr;
-        String firstCoordStr, secondCoordStr, target;
+        String minDateStr = null, maxDateStr = null;
+        String location = null;
+        Integer limit = null;
         if (!req.body().isEmpty()) {
             JSONObject requestBody;
             try {
                 requestBody = (JSONObject) new JSONParser().parse(req.body());
             } catch (ParseException e) {
                 res.status(400);
+                res.type("application/json");
                 return "{\"error\": \"Body cannot be parsed as json\"}";
             }
             System.out.println("GET /api/evaluate/polygon: RequestBody: " + requestBody);
             minDateStr = (String) requestBody.get("minDate");
             maxDateStr = (String) requestBody.get("maxDate");
-            firstCoordStr = (String) requestBody.get("firstCoord");
-            secondCoordStr = (String) requestBody.get("secondCoord");
-            target = (String) requestBody.get("target");
-        } else if (!req.queryParams().isEmpty()) {
+            location = (String) requestBody.get("location");
+            if (requestBody.containsKey("limit")) {
+                try {
+                    limit = Integer.parseInt((String) requestBody.get("limit"));
+                } catch (NumberFormatException e) {
+                    res.status(400);
+                    res.type("application/json");
+                    return "{\"error\":\"limit parameter cannot be parsed as integer\"}";
+                }
+            }
+        }
+        if (!req.queryParams().isEmpty()) {
             System.out.println("GET /api/evaluate/polygon: request query: " + req.queryString());
-            minDateStr = req.queryParams("minDate");
-            maxDateStr = req.queryParams("maxDate");
-            firstCoordStr = (String) req.queryParams("firstCoord");
-            secondCoordStr = (String) req.queryParams("secondCoord");
-            target = (String) req.queryParams("target");
-        } else {
+            if (req.queryParams().contains("minDate")) {
+                minDateStr = req.queryParams("minDate");
+            }
+            if (req.queryParams().contains("maxDate")) {
+                maxDateStr = req.queryParams("maxDate");
+            }
+            if (req.queryParams().contains("location")) {
+                location = (String) req.queryParams("location");
+            }
+            if (req.queryParams().contains("limit")) {
+                try {
+                    limit = Integer.parseInt((String) req.queryParams("limit"));
+                } catch (NumberFormatException e) {
+                    res.status(400);
+                    res.type("application/json");
+                    return "{\"error\":\"limit parameter cannot be parsed as integer\"}";
+                }
+            }
+        }
+        if (req.body().isEmpty() && req.queryParams().isEmpty()) {
             System.out.println("GET /api/evaluate/polygon: No query or body params");
             res.type("text/html");
             return "<html><body><h1>Polygon evaluation: no parameters are given</h1>"
-                    + "<p>Use this endpoint with <b>firstPoint</b> and <b>secondPoint</b>, or "
-                    + "<b>target</b> (for district or municipality) parameters </p>"
-                    + "<p>For points use format \"latitude,longitude\"</p>"
-                    + "<p>The result will be a number of buildings used for calculations and 3 evaluation"
+                    + "<p>Use this endpoint with <b>limit</b> (optional, default=" + ProblemFilter.LIMIT_DEFAULT
+                    + "), <b>minDate</b> (optional), <b>maxDate</b> (optional) "
+                    + "and <b>location</b> (optional as a featue, when minDate or maxDate is set) parameters</p>"
+                    + "<p>Possible formats for <b>location</b> parameter:"
+                    + "<ul><li>\"latitude1,longitude1;latitude2,longitude2\" for a pair of coordinates to define a square on a map</li>"
+                    + "<li>\"municipality_name\" for a municipality (see the list at /api/groups/municipality)</li>"
+                    + "<li>\"district_name\" for a district (see the list at /api/groups/district)</li>"
+                    + "<li>(geojson) for a polygon on a map</li></ul></p>"
+                    + "<p>The result will be a number of problems used for calculations and 3 evaluation"
                     + " values with total evaluation value</p></body></html>";
         }
-        if (minDateStr == null && maxDateStr == null && target == null && (firstCoordStr == null || secondCoordStr == null)) {
+        if (minDateStr == null && maxDateStr == null && location == null) {
             res.status(400);
-            return "{\"error\": \"Request is missing minDateStr, maxDateStr, target and at least one of the firstCoord and secondCoord is not set in request\"}";
+            return "{\"error\": \"Request is missing all of the minDateStr, maxDateStr and location\"}";
         }
 
         JSONObject result = new JSONObject();
@@ -270,31 +326,45 @@ public class App {
         ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put(
             "href", req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
         result.put("_embedded", new JSONObject());
-        
-        if (target == null || minDateStr != null || maxDateStr != null) {
+        boolean isCoordsPair = location != null ? location.matches("^\\d+(\\.\\d+)?,\\d+(\\.\\d+)?;\\d+(\\.\\d+)?,\\d+(\\.\\d+)?$") : false;
+        if (isCoordsPair || location != null && location.startsWith("{") || minDateStr != null || maxDateStr != null) {
             ProblemFilter pf = new ProblemFilter();
-            if (firstCoordStr != null && secondCoordStr != null)
-                pf.setCoords(firstCoordStr, secondCoordStr);
+            if (limit != null) {
+                pf.setLimit(limit);
+            }
+            if (isCoordsPair) {
+                String[] coordsPair = location.split(";");
+                pf.setCoords(coordsPair[0], coordsPair[1]);
+            } else if (location.startsWith("{")) {
+                pf.setGeoJSON(location);
+            } else if (location != null) {
+                if (districts.contains(location)) {
+                    pf.setDistrict(location);
+                } else if (municipalities.contains(location)) {
+                    pf.setMunicipality(location);
+                } else {
+                    res.status(400);
+                    res.type("application/json");
+                    return "{\"error\": \"location (" + location + ") is not a municipality or district\"}";
+                }
+            }
             try {
                 if (minDateStr != null) {
                     pf.setMinCreationDate(LocalDate.parse(minDateStr));
                 }
+            } catch (Exception e) {
+                res.status(400);
+                res.type("application/json");
+                return "{\"error\": \"minDate is not a valid date (use format YYYY-MM-DD)\"}";
+            }
+            try {
                 if (maxDateStr != null) {
                     pf.setMaxCreationDate(LocalDate.parse(maxDateStr));
                 }
             } catch (Exception e) {
-                pf.setMinCreationDate(null).setMaxCreationDate(null);
-            }
-            if (target != null) {
-                if (districts.contains(target)) {
-                    pf.setDistrict(target);
-                } else if (municipalities.contains(target)) {
-                    pf.setMunicipality(target);
-                } else {
-                    res.status(400);
-                    res.type("application/json");
-                    return "{\"error\": \"target (" + target + ") is not a municipality or district\"}";
-                }
+                res.status(400);
+                res.type("application/json");
+                return "{\"error\": \"maxDate is not a valid date (use format YYYY-MM-DD)\"}";
             }
             List<Problem> problems = ServiceFactory.getPorblemService().getProblemsByFilter(pf);
             ((JSONObject) result.get("_embedded")).put("problems_number", problems.size());
@@ -314,14 +384,14 @@ public class App {
             ((JSONObject) result.get("_embedded")).put("rank", rank);
         } else {
             Double[] tmp;
-            if (districts.contains(target)) {
-                tmp = ServiceFactory.getPorblemService().getEvaluationByDistrict(target);
-            } else if (municipalities.contains(target)) {
-                tmp = ServiceFactory.getPorblemService().getEvaluationByMunicipality(target);
+            if (districts.contains(location)) {
+                tmp = ServiceFactory.getPorblemService().getEvaluationByDistrict(location);
+            } else if (municipalities.contains(location)) {
+                tmp = ServiceFactory.getPorblemService().getEvaluationByMunicipality(location);
             } else {
                 res.status(400);
                 res.type("application/json");
-                return "{\"error\": \"target (" + target + ") is not a municipality or district\"}";
+                return "{\"error\": \"location (" + location + ") is not a municipality or district\"}";
             }
             ((JSONObject) result.get("_embedded")).put("problems_number", tmp[4]);
             JSONObject rank = new JSONObject();
@@ -337,8 +407,9 @@ public class App {
 
     @SuppressWarnings("unchecked")
     private static String objectsEvaluation(Request req, Response res) {
-        String minDateStr, maxDateStr;
-        String firstCoordStr, secondCoordStr, type;
+        String minDateStr = null, maxDateStr = null;
+        String type = null, location = null;
+        Integer limit = null;
         if (!req.body().isEmpty()) {
             JSONObject requestBody;
             try {
@@ -350,24 +421,49 @@ public class App {
             System.out.println("GET /api/evaluate/objects: RequestBody: " + requestBody);
             minDateStr = (String) requestBody.get("minDate");
             maxDateStr = (String) requestBody.get("maxDate");
-            firstCoordStr = (String) requestBody.get("firstCoord");
-            secondCoordStr = (String) requestBody.get("secondCoord");
             type = (String) requestBody.get("type");
-        } else if (!req.queryParams().isEmpty()) {
+            location = (String) requestBody.get("location");
+            if (requestBody.containsKey("limit")) {
+                try {
+                    limit = Integer.parseInt((String) requestBody.get("limit"));
+                } catch (NumberFormatException e) {
+                    res.status(400);
+                    res.type("application/json");
+                    return "{\"error\":\"limit parameter cannot be parsed as integer\"}";
+                }
+            }
+        }
+        if (!req.queryParams().isEmpty()) {
             System.out.println("GET /api/evaluate/objects: request query: " + req.queryString());
             minDateStr = req.queryParams("minDate");
             maxDateStr = req.queryParams("maxDate");
-            firstCoordStr = (String) req.queryParams("firstCoord");
-            secondCoordStr = (String) req.queryParams("secondCoord");
             type = (String) req.queryParams("type");
-        } else {
-            System.out.println("GET /api/evaluate/polygon: No query or body params");
+            location = (String) req.queryParams("location");
+            if (req.queryParams().contains("limit")) {
+                try {
+                    limit = Integer.parseInt((String) req.queryParams("limit"));
+                } catch (NumberFormatException e) {
+                    res.status(400);
+                    res.type("application/json");
+                    return "{\"error\":\"limit parameter cannot be parsed as integer\"}";
+                }
+            }
+        }
+        if (req.body().isEmpty() && req.queryParams().isEmpty()) {
+            System.out.println("GET /api/evaluate/objects: No query or body params");
             res.type("text/html");
             return "<html><body><h1>Objects evaluation: no parameters are given</h1>"
-                    + "<p>Use this endpoint with <b>firstPoint</b>, <b>secondPoint</b> and "
-                    + "<b>type</b> parameters </p>"
-                    + "<p>For points use format \"latitude,longitude\". Type must be one of the: "
-                    + "<i>building, yard, maf, water, greenzone, uds</i></p>"
+                    + "<p>Use this endpoint with <b>limit</b> (optional, default=" + ProblemFilter.LIMIT_DEFAULT
+                    + "), <b>minDate</b> (optional), <b>maxDate</b> (optional) "
+                    + "and <b>location</b>  parameters </p>"
+                    + "<p>Possible formats for <b>location</b> parameter:"
+                    + "<ul><li>\"latitude1,longitude1;latitude2,longitude2\" for a pair of coordinates to define a square on a map</li>"
+                    + "<li>\"municipality_name\" for a municipality (see the list at /api/groups/municipality)</li>"
+                    + "<li>\"district_name\" for a district (see the list at /api/groups/district)</li>"
+                    + "<li>(geojson) for a polygon on a map</li></ul>"
+                    + "Type must be one of the: "
+                    + "<i>building</i>, <i>yard</i>, <i>maf</i>, <i>water</i>, <i>greenzone</i>, <i>uds</i>, "
+                    + "<i>everything</i> (this is also default value when type is not set)</i></p>"
                     + "<p>The result will be a list of coordinates and their evaluation results"
                     + " (S, I, C and total value)</p></body></html>";
         }
@@ -383,16 +479,47 @@ public class App {
             "href", req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
         result.put("_embedded", new JSONObject());
 
-        ProblemFilter pf = new ProblemFilter().setCoords(firstCoordStr, secondCoordStr);
+        ProblemFilter pf = new ProblemFilter();
+        if (limit != null) {
+            pf.setLimit(limit);
+        }
+        if (location != null) {
+            if (location.matches("^\\d+(\\.\\d+)?,\\d+(\\.\\d+)?;\\d+(\\.\\d+)?,\\d+(\\.\\d+)?$")) {
+                String[] coordsPair = location.split(";");
+                pf.setCoords(coordsPair[0], coordsPair[1]);
+            } else if (location.startsWith("{")) {
+                pf.setGeoJSON(location);
+            } else if (districts.contains(location)) {
+                pf.setDistrict(location);
+            } else if (municipalities.contains(location)) {
+                pf.setMunicipality(location);
+            } else {
+                res.status(400);
+                res.type("application/json");
+                return "{\"error\": \"location (" + location + ") is not a municipality or district\"}";
+            }
+        } else {
+            res.status(400);
+            res.type("application/json");
+            return "{\"error\": \"You need to set location for object evaluation\"}";
+        }
         try {
             if (minDateStr != null) {
                 pf.setMinCreationDate(LocalDate.parse(minDateStr));
             }
+        } catch (Exception e) {
+            res.status(400);
+            res.type("application/json");
+            return "{\"error\": \"minDate is not a valid date (use format YYYY-MM-DD)\"}";
+        }
+        try {
             if (maxDateStr != null) {
                 pf.setMaxCreationDate(LocalDate.parse(maxDateStr));
             }
         } catch (Exception e) {
-            pf.setMinCreationDate(null).setMaxCreationDate(null);
+            res.status(400);
+            res.type("application/json");
+            return "{\"error\": \"maxDate is not a valid date (use format YYYY-MM-DD)\"}";
         }
         
         List<Problem> problems = ServiceFactory.getPorblemService().getProblemsByFilter(pf);
@@ -671,7 +798,7 @@ public class App {
 
         // INFO BLOCK
 
-        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-12-07</h1>"
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-12-10</h1>"
                 + "<p>Set Accept header to include json or hal+json, and you will get api description in HAL format from this page</p>"
                 + "<ul><li><a href=/api/problems/search>Search problems API</a></li>"
                 + "<li><a href=/api/groups>Get groups API</a></li>"

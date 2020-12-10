@@ -11,6 +11,7 @@ public class ProblemFilter {
     private String status, category, subcategory, municipality, district;
     private Coordinates firstCoord, secondCoord;
     private LocalDate minCreationDate, maxCreationDate;
+    private String geoJSON;
     int limit;
 
     public ProblemFilter() {
@@ -23,6 +24,7 @@ public class ProblemFilter {
         secondCoord = null;
         minCreationDate = null;
         maxCreationDate = null;
+        geoJSON = null;
         limit = LIMIT_DEFAULT;
     }
 
@@ -73,6 +75,11 @@ public class ProblemFilter {
         return this;
     }
 
+    public ProblemFilter setGeoJSON(String geoJSON) {
+        this.geoJSON = geoJSON;
+        return this;
+    }
+
     public ProblemFilter setLimit(int limit) {
         this.limit = limit;
         return this;
@@ -114,6 +121,10 @@ public class ProblemFilter {
         return maxCreationDate;
     }
 
+    public String getGeoJSON() {
+        return geoJSON;
+    }
+
     public int getLimit() {
         return limit;
     }
@@ -145,7 +156,7 @@ public class ProblemFilter {
 
     public String buildWhereString() {
         if (isNulled()) {
-            if (limit != 0)
+            if (limit > 0)
                 return " limit " + limit;
             else
                 return "";
@@ -157,28 +168,27 @@ public class ProblemFilter {
         count = addArgument(count, sb, "subcategory", "=", subcategory);
         count = addArgument(count, sb, "municipality", "=", municipality);
         count = addArgument(count, sb, "district", "=", district);
-        if (firstCoord != null && secondCoord != null) {
+        if (geoJSON != null || (firstCoord != null && secondCoord != null)) {
             if (count == 0) {
                 sb.append(" ");
             } else {
                 sb.append(" and ");
             }
             count++;
-            sb.append(String.format(
-                    "ST_WITHIN(coordinates, ST_POLYGON(text('LINESTRING(%s %s, %s %s, %s %s, %s %s, %s %s)'), 4326))",
-                    firstCoord.getLongitude(), firstCoord.getLatitude(), firstCoord.getLongitude(),
-                    secondCoord.getLatitude(), secondCoord.getLongitude(), secondCoord.getLatitude(),
-                    secondCoord.getLongitude(), firstCoord.getLatitude(), firstCoord.getLongitude(),
-                    firstCoord.getLatitude()));
+            if (geoJSON != null) {
+                sb.append(String.format("ST_WITHIN(coordinates, ST_SetSRID(ST_GeomFromGeoJSON('%s'::text), 4326))", geoJSON));
+            } else {
+                sb.append(String.format(
+                        "ST_WITHIN(coordinates, ST_POLYGON('LINESTRING(%s %s, %s %s, %s %s, %s %s, %s %s)'::text, 4326))",
+                        firstCoord.getLongitude(), firstCoord.getLatitude(), firstCoord.getLongitude(),
+                        secondCoord.getLatitude(), secondCoord.getLongitude(), secondCoord.getLatitude(),
+                        secondCoord.getLongitude(), firstCoord.getLatitude(), firstCoord.getLongitude(),
+                        firstCoord.getLatitude()));
+            }
         }
         count = addArgument(count, sb, "CreationDate", ">=", minCreationDate);
         count = addArgument(count, sb, "CreationDate", "<=", maxCreationDate);
-        if (count == 0) {
-            sb.append(" ");
-        } else {
-            sb.append(" and ");
-        }
-        sb.append("municipality not like '%%(искл.)'");
+        sb.append(" ");
         if (limit != 0) {
             sb.append(" limit ");
             sb.append(limit);
