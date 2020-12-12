@@ -39,7 +39,7 @@ public class App {
     @SuppressWarnings("unchecked")
     private static String apiDefinition(Request req, Response res) {
         JSONObject result = new JSONObject();
-        result.put("version", "2020-12-10");
+        result.put("version", "2020-12-10-quickfix");
         JSONObject links = new JSONObject();
 
         links.put("self", new JSONObject());
@@ -182,7 +182,7 @@ public class App {
             } else {
                 res.status(400);
                 res.type("application/json");
-                return "{\"error\": \"location (" + location + ") is not a municipality or district\"}";
+                return "{\"error\": \"location (" + location.replace("\"", "\\\"") + ") is not a municipality or district\"}";
             }
         }
 
@@ -345,7 +345,7 @@ public class App {
                 } else {
                     res.status(400);
                     res.type("application/json");
-                    return "{\"error\": \"location (" + location + ") is not a municipality or district\"}";
+                    return "{\"error\": \"location (" + location.replace("\"", "\\\"") + ") is not a municipality or district\"}";
                 }
             }
             try {
@@ -391,7 +391,7 @@ public class App {
             } else {
                 res.status(400);
                 res.type("application/json");
-                return "{\"error\": \"location (" + location + ") is not a municipality or district\"}";
+                return "{\"error\": \"location (" + location.replace("\"", "\\\"") + ") is not a municipality or district\"}";
             }
             ((JSONObject) result.get("_embedded")).put("problems_number", tmp[4]);
             JSONObject rank = new JSONObject();
@@ -435,10 +435,18 @@ public class App {
         }
         if (!req.queryParams().isEmpty()) {
             System.out.println("GET /api/evaluate/objects: request query: " + req.queryString());
-            minDateStr = req.queryParams("minDate");
-            maxDateStr = req.queryParams("maxDate");
-            type = (String) req.queryParams("type");
-            location = (String) req.queryParams("location");
+            if (req.queryParams().contains("minDate")) {
+                minDateStr = req.queryParams("minDate");
+            }
+            if (req.queryParams().contains("maxDate")) {
+                maxDateStr = req.queryParams("maxDate");
+            }
+            if (req.queryParams().contains("type")) {
+                type = (String) req.queryParams("type");
+            }
+            if (req.queryParams().contains("location")) {
+                location = (String) req.queryParams("location");
+            }
             if (req.queryParams().contains("limit")) {
                 try {
                     limit = Integer.parseInt((String) req.queryParams("limit"));
@@ -488,6 +496,7 @@ public class App {
                 String[] coordsPair = location.split(";");
                 pf.setCoords(coordsPair[0], coordsPair[1]);
             } else if (location.startsWith("{")) {
+                System.out.println("Set location");
                 pf.setGeoJSON(location);
             } else if (districts.contains(location)) {
                 pf.setDistrict(location);
@@ -496,37 +505,39 @@ public class App {
             } else {
                 res.status(400);
                 res.type("application/json");
-                return "{\"error\": \"location (" + location + ") is not a municipality or district\"}";
+                return "{\"error\": \"location (" + location.replace("\"", "\\\"") + ") is not a municipality or district\"}";
             }
         } else {
             res.status(400);
             res.type("application/json");
             return "{\"error\": \"You need to set location for object evaluation\"}";
         }
-        try {
-            if (minDateStr != null) {
+        if (minDateStr != null) {
+            try {
                 pf.setMinCreationDate(LocalDate.parse(minDateStr));
+            } catch (Exception e) {
+                res.status(400);
+                res.type("application/json");
+                return "{\"error\": \"minDate is not a valid date (use format YYYY-MM-DD)\"}";
             }
-        } catch (Exception e) {
-            res.status(400);
-            res.type("application/json");
-            return "{\"error\": \"minDate is not a valid date (use format YYYY-MM-DD)\"}";
         }
-        try {
-            if (maxDateStr != null) {
+        if (maxDateStr != null) {
+            try {
                 pf.setMaxCreationDate(LocalDate.parse(maxDateStr));
+            } catch (Exception e) {
+                res.status(400);
+                res.type("application/json");
+                return "{\"error\": \"maxDate is not a valid date (use format YYYY-MM-DD)\"}";
             }
-        } catch (Exception e) {
-            res.status(400);
-            res.type("application/json");
-            return "{\"error\": \"maxDate is not a valid date (use format YYYY-MM-DD)\"}";
         }
         
         List<Problem> problems = ServiceFactory.getPorblemService().getProblemsByFilter(pf);
-        ((JSONObject) result.get("_embedded")).put("problems_number", problems.size());
-
+        
         JSONArray evaluations = new JSONArray();
-        for (Double[] sict: Utils.evaluateObjects(problems, type)) {
+        List<Double[]> evaluation = Utils.evaluateObjects(problems, type);
+        ((JSONObject) result.get("_embedded")).put("total_problems_number", problems.size());
+        ((JSONObject) result.get("_embedded")).put("type_problems_number", evaluation.size());
+        for (Double[] sict: evaluation) {
             JSONObject rank = new JSONObject();
             {
                 JSONArray coordinates = new JSONArray();
@@ -798,7 +809,7 @@ public class App {
 
         // INFO BLOCK
 
-        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-12-10</h1>"
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-12-10-quickfix</h1>"
                 + "<p>Set Accept header to include json or hal+json, and you will get api description in HAL format from this page</p>"
                 + "<ul><li><a href=/api/problems/search>Search problems API</a></li>"
                 + "<li><a href=/api/groups>Get groups API</a></li>"

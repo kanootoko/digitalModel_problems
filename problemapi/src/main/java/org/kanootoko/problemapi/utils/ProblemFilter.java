@@ -146,7 +146,7 @@ public class ProblemFilter {
     }
 
     public boolean isNulled() {
-        return status == null && category == null && subcategory == null && firstCoord == null && secondCoord == null
+        return status == null && category == null && subcategory == null && geoJSON == null && (firstCoord == null || secondCoord == null)
                 && minCreationDate == null && maxCreationDate == null && municipality == null && district == null;
     }
 

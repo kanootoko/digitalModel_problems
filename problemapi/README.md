@@ -13,7 +13,7 @@ This is API server for getting probelms from postgres database based on data fro
 5. compile with `mvn compile assembly:single`
 6. install R and libraries (`tidyverse`, `readr`) (look at **R installation** section in case of problems)
 7. copy or symlink R scripts to the directory of launching (`cp evaluation-model/*.R .`)
-8. launch with `java -jar target/problemapi-2020-12-10-jar-with-dependencies.jar`
+8. launch with `java -jar target/problemapi-2020-12-10-quickfix-jar-with-dependencies.jar`
 
 ## R installation
 
@@ -68,13 +68,14 @@ Command line arguments configuration is also avaliable (overrides environment va
 * `-W,--db_pass <str>` - db_pass
 * `-S,--skip_evaluation` - skip_evaluation
 
-## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2020-12-10)
+## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2020-12-10-quickfix)
 
 1. open terminal in cloned repository
-2. build image with `docker build --tag kanootoko/digitalmodel_problems:2020-12-10 .`
-3. run image with postgres server running on host machine on default port 5432
-    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-12-10`
-    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-12-10`  
+2. build application with `mvn compile assembly:single`
+3. build Docker image with `docker build --tag kanootoko/digitalmodel_problems:2020-12-10-quickfix .`
+4. run image with postgres server running on host machine on default port 5432
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-12-10-quickfix`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-12-10-quickfix`  
        Ensure that:
         1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
         2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)
@@ -163,7 +164,7 @@ Also with no parameters URIs {/, /api/groups, /api/evaluation/polygon, /api/eval
       "href": "/api/"
     }
   },
-  "version": "2020-12-10"
+  "version": "2020-12-10-quickfix"
 }
 ```
 
@@ -216,27 +217,27 @@ Formats:
         }
     },
     "_embedded": {
-        "reason": ":reason",
-        "updateDate": ":updateDate",
+        "id": ":id",
+        "outerID": ":outerID",
+        "name": ":name",
+        "coordinates": [":latitude",":longitude"],
         "address": ":address",
+        "district": ":district",
+        "municipality": ":municipality",
+        "userName": ":userName",
+        "userID": ":userID",
+        "description": ":description",
+        "reason": ":reason",
+        "creationDate": ":creationDate",
+        "updateDate": ":updateDate",
+        "category": ":category",
+        "subcategory": ":subcategory",
+        "status": ":status",
         "_links": {
             "self": {
                 "href": "/api/problems/:problemID"
             }
-        },
-        "coordinates": [":latitude",":longitude"],
-        "municipality": ":municipality",
-        "description": ":description",
-        "creationDate": ":creationDate",
-        "userName": ":userName",
-        "userID": ":userID",
-        "name": ":name",
-        "outerID": ":outerID",
-        "id": ":id",
-        "district": ":district",
-        "category": ":category",
-        "subcategory": ":subcategory",
-        "status": ":status"
+        }
     }
 }
 ```
@@ -246,7 +247,7 @@ Formats:
 * :reason, :municipality, :description, :userName, :name, :district, :category, :subcategory, :status - string
 * :address - string, can be empty
 * :creationDate, :updateDate - string representing date in format "YYYY-MM-DD"
-* :problemID, :outerID - integer
+* :problemID, :outerID - unique integer
 * :latitude, :longitude - floating point number with precision of 4 digits after the point
 
 #### /api/groups/:labelName
@@ -327,19 +328,19 @@ S - safety, C - physical comfort, I - estetic comfort, problems_number - number 
             },
             <...>
         ],
-        "problems_number": ":problems_number"
+        "total_problems_number": ":total_problems_number",
+        "type_problems_number": ":type_problems_number"
     }
 }
 ```
 
 Formats:
 
-* :district_name - string
-* :problems_number - integer
+* :total_problems_number, :type_problems_number - integer, total_problems_number >= type_problems_number
 * :total, :S, :C, :I, :latitude, :longitude - floating point number with precision of 4 digits after the point
 
-S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
-  got by coordinates and used in calculations
+S - safety, C - physical comfort, I - estetic comfort, type_problems_number - number of problems of a given type
+  inside a polygon and used in calculations, total_problems_number - number of problems inside a polygon (with any type)
 
 #### /api/evaluation/municipalities
 
@@ -386,11 +387,11 @@ S - safety, C - physical comfort, I - estetic comfort, problems_number - number 
     "_embedded": {
         "districts": [
             {
+                "name": ":district_name",
                 "S": ":S",
                 "I": ":I",
                 "C": ":C",
                 "total": ":total",
-                "name": ":district_name",
                 "problems_number": ":problems_number"
             }, <...>
         ]
