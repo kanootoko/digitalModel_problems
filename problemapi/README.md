@@ -13,7 +13,7 @@ This is API server for getting probelms from postgres database based on data fro
 5. compile with `mvn compile assembly:single`
 6. install R and libraries (`tidyverse`, `readr`) (look at **R installation** section in case of problems)
 7. copy or symlink R scripts to the directory of launching (`cp evaluation-model/*.R .`)
-8. launch with `java -jar target/problemapi-2020-12-10-quickfix-jar-with-dependencies.jar`
+8. launch with `java -jar target/problemapi-2021-04-20-jar-with-dependencies.jar`
 
 ## R installation
 
@@ -68,14 +68,14 @@ Command line arguments configuration is also avaliable (overrides environment va
 * `-W,--db_pass <str>` - db_pass
 * `-S,--skip_evaluation` - skip_evaluation
 
-## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2020-12-10-quickfix)
+## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2021-04-20)
 
 1. open terminal in cloned repository
 2. build application with `mvn compile assembly:single`
-3. build Docker image with `docker build --tag kanootoko/digitalmodel_problems:2020-12-10-quickfix .`
+3. build Docker image with `docker build --tag kanootoko/digitalmodel_problems:2021-04-20 .`
 4. run image with postgres server running on host machine on default port 5432
-    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2020-12-10-quickfix`
-    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2020-12-10-quickfix`  
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2021-04-20`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2021-04-20`  
        Ensure that:
         1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
         2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)
@@ -106,13 +106,13 @@ At this moment there are some main endpoints:
   parameter (it can be district, municipality, two points to define a square on the map (format lat1,lon1;lat2,lon2) or geojson).
   You can also set _minDate_ and/or _maxDate_ and limit (maximal number of problems to evaluate, default is 100000) parameters.  
   Returns 4 evaluation results: safety, physical comfort, esthetic comfort and total evaluation value of given territory based on problems
-  * **/api/evaluation/municipalities** : returns polygon evaluation of all of the municipalities
-  * **/api/evaluation/districts** : returns polygon evaluation of all of the districts
+  * **/api/evaluation/municipalities** : returns polygon evaluation of all of the municipalities, month can be given as a parameter in format YYYY-MM
+  * **/api/evaluation/districts** : returns polygon evaluation of all of the districts, month can be given as a parameter in format YYYY-MM
 * **/api/evaluation/objects** : takes type of object to evaluate (building. yard, maf, water, greenzone, uds) and _location_ parameter the
   You can also set _minDate_ and/or _maxDate_ parameters and limit value (maximal number of problems to evaluate, default is 100000).  
   Returns a list of evaluated objects with coordinates and 4 evaluation results.
 * **/api/groups/:labelName** : returns list of unique values in given label and number of problems having those values.
-  It is used to get statuses, categories and subcategories.
+  It is used to get statuses, categories and subcategories. `date` query parameter can be specified to get available groups only on the given month/
 
 Also with no parameters URIs {/, /api/groups, /api/evaluation/polygon, /api/evaluation/objects and /api/problems/search}
   will return HTML with a bit of description
@@ -124,47 +124,57 @@ Also with no parameters URIs {/, /api/groups, /api/evaluation/polygon, /api/eval
 ```json
 {
   "_links": {
-    "problems-search": {
-      "templated": true,
-      "href": "/api/problems/search{?minDate,maxDate,location,category,subcategory,status,municipality,district,limit}"
-    },
-    "first-problem": {
-      "href": "/api/problems/1"
-    },
-    "evaluation-polygon": {
-      "templated": true,
-      "href": "/api/evaluation/polygon/{?minDate,maxDate,location,limit}"
-    },
-    "evaluation-objects": {
-      "templated": true,
-      "href": "/api/evaluation/objects{?minDate,maxDate,location,type,limit}"
-    },
-    "evaluation-districts": {
-      "href": "/api/evaluation/districts/"
-    },
-    "evaluation-municipalities": {
-      "href": "/api/evaluation/municipalities"
-    },
-    "districts": {
-      "href": "/api/groups/district/"
-    },
-    "munitipalities": {
-      "href": "/api/groups/municipality/"
-    },
-    "statuses": {
-      "href": "/api/groups/status/"
-    },
-    "categories": {
-      "href": "/api/groups/category/"
-    },
-    "subcategories": {
-      "href": "/api/groups/subcategory/"
-    },
     "self": {
       "href": "/api/"
+    },
+    "problems-search": {
+      "href": "/api/problems/search/{?minDate,maxDate,location,category,subcategory,status,municipality,district,limit}",
+      "templated": true
+    },
+    "evaluation-objects": {
+      "href": "/api/evaluation/objects/{?minDate,maxDate,location,type,limit}",
+      "templated": true
+    },
+    "evaluation-months-counts": {
+      "href": "/api/evaluation/months/"
+    },
+    "first-problem": {
+      "href": "/api/problems/1/"
+    },
+    "districts": {
+      "href": "/api/groups/district/{?date}",
+      "templated": true
+    },
+    "evaluation-polygon": {
+      "href": "/api/evaluation/polygon/{?minDate,maxDate,location,limit}",
+      "templated": true
+    },
+    "evaluation-districts": {
+      "href": "/api/evaluation/districts/{?date}",
+      "templated": true
+    },
+    "municipalities": {
+      "href": "/api/groups/municipality/{?date}",
+      "templated": true
+    },
+    "evaluation-municipalities": {
+      "href": "/api/evaluation/municipalities/{?date}",
+      "templated": true
+    },
+    "statuses": {
+      "href": "/api/groups/status/{?date}",
+      "templated": true
+    },
+    "categories": {
+      "href": "/api/groups/category/{?date}",
+      "templated": true
+    },
+    "subcategories": {
+      "href": "/api/groups/subcategory/{?date}",
+      "templated": true
     }
   },
-  "version": "2020-12-10-quickfix"
+  "version": ":version"
 }
 ```
 
@@ -407,3 +417,29 @@ Formats:
 
 S - safety, C - physical comfort, I - estetic comfort, problems_number - number of problems
   got by coordinates and used in calculations
+
+#### /api/evaluation/months
+
+```json
+{
+  "_links": {
+    "self": {
+      "href": "/api/evaluation/months/"
+    }
+  },
+  "_embedded": {
+    "counts": [
+      [
+        ":date",
+        ":count"
+      ],
+      <...>
+    ]
+  }
+}
+```
+
+Formats:
+
+* :date - string, date in format YYYY-MM
+* :count - integer, number of problems totally for the given month

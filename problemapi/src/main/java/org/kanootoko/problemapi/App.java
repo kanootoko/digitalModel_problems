@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -21,6 +22,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import org.kanootoko.problemapi.models.HALResponse;
 import org.kanootoko.problemapi.models.entities.Problem;
 import org.kanootoko.problemapi.services.ProblemService;
 import org.kanootoko.problemapi.utils.ConnectionManager;
@@ -39,7 +41,7 @@ public class App {
     @SuppressWarnings("unchecked")
     private static String apiDefinition(Request req, Response res) {
         JSONObject result = new JSONObject();
-        result.put("version", "2020-12-10-quickfix");
+        result.put("version", "2021-04-20");
         JSONObject links = new JSONObject();
 
         links.put("self", new JSONObject());
@@ -64,25 +66,35 @@ public class App {
         ((JSONObject) links.get("evaluation-objects")).put("templated", true);
 
         links.put("evaluation-districts", new JSONObject());
-        ((JSONObject) links.get("evaluation-districts")).put("href", "/api/evaluation/districts/");
+        ((JSONObject) links.get("evaluation-districts")).put("href", "/api/evaluation/districts/{?date}");
+        ((JSONObject) links.get("evaluation-districts")).put("templated", true);
 
         links.put("evaluation-municipalities", new JSONObject());
-        ((JSONObject) links.get("evaluation-municipalities")).put("href", "/api/evaluation/municipalities/");
+        ((JSONObject) links.get("evaluation-municipalities")).put("href", "/api/evaluation/municipalities/{?date}");
+        ((JSONObject) links.get("evaluation-municipalities")).put("templated", true);
 
         links.put("categories", new JSONObject());
-        ((JSONObject) links.get("categories")).put("href", "/api/groups/category/");
+        ((JSONObject) links.get("categories")).put("href", "/api/groups/category/{?date}");
+        ((JSONObject) links.get("categories")).put("templated", true);
 
         links.put("subcategories", new JSONObject());
-        ((JSONObject) links.get("subcategories")).put("href", "/api/groups/subcategory/");
+        ((JSONObject) links.get("subcategories")).put("href", "/api/groups/subcategory/{?date}");
+        ((JSONObject) links.get("subcategories")).put("templated", true);
 
         links.put("statuses", new JSONObject());
-        ((JSONObject) links.get("statuses")).put("href", "/api/groups/status/");
+        ((JSONObject) links.get("statuses")).put("href", "/api/groups/status/{?date}");
+        ((JSONObject) links.get("statuses")).put("templated", true);
 
-        links.put("munitipalities", new JSONObject());
-        ((JSONObject) links.get("munitipalities")).put("href", "/api/groups/municipality/");
+        links.put("municipalities", new JSONObject());
+        ((JSONObject) links.get("municipalities")).put("href", "/api/groups/municipality/{?date}");
+        ((JSONObject) links.get("municipalities")).put("templated", true);
 
         links.put("districts", new JSONObject());
-        ((JSONObject) links.get("districts")).put("href", "/api/groups/district/");
+        ((JSONObject) links.get("districts")).put("href", "/api/groups/district/{?date}");
+        ((JSONObject) links.get("districts")).put("templated", true);
+
+        links.put("evaluation-months-counts", new JSONObject());
+        ((JSONObject) links.get("evaluation-months-counts")).put("href", "/api/evaluation/months/");
 
         result.put("_links", links);
         res.type("application/hal+json");
@@ -188,11 +200,7 @@ public class App {
 
         ProblemService ps = ServiceFactory.getPorblemService();
         List<Problem> problems = ps.getProblemsByFilter(pf);
-        JSONObject result = new JSONObject();
-        result.put("_links", new JSONObject());
-        ((JSONObject) result.get("_links")).put("self", new JSONObject());
-        ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put(
-            "href", req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
+        JSONObject result = new HALResponse(req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
         result.put("size", problems.size());
         JSONArray problemsArray = new JSONArray();
         for (Problem p : problems) {
@@ -232,7 +240,7 @@ public class App {
     @SuppressWarnings("unchecked")
     private static String getGroups(Request req, Response res) {
         ProblemService ps = ServiceFactory.getPorblemService();
-        Map<String, Integer> groups = ps.getGroupsSize(req.params(":labelName"));
+        Map<String, Integer> groups = ps.getGroupsSize(req.params(":labelName"), req.queryParamOrDefault("date", null));
         JSONObject result = new JSONObject();
         result.put("_links", new JSONObject());
         ((JSONObject) result.get("_links")).put("self", new JSONObject());
@@ -320,12 +328,7 @@ public class App {
             return "{\"error\": \"Request is missing all of the minDateStr, maxDateStr and location\"}";
         }
 
-        JSONObject result = new JSONObject();
-        result.put("_links", new JSONObject());
-        ((JSONObject) result.get("_links")).put("self", new JSONObject());
-        ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put(
-            "href", req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
-        result.put("_embedded", new JSONObject());
+        JSONObject result = new HALResponse(req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
         boolean isCoordsPair = location != null ? location.matches("^\\d+(\\.\\d+)?,\\d+(\\.\\d+)?;\\d+(\\.\\d+)?,\\d+(\\.\\d+)?$") : false;
         if (isCoordsPair || location != null && location.startsWith("{") || minDateStr != null || maxDateStr != null) {
             ProblemFilter pf = new ProblemFilter();
@@ -480,12 +483,7 @@ public class App {
             type = "everything";
         }
 
-        JSONObject result = new JSONObject();
-        result.put("_links", new JSONObject());
-        ((JSONObject) result.get("_links")).put("self", new JSONObject());
-        ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put(
-            "href", req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
-        result.put("_embedded", new JSONObject());
+        JSONObject result = new HALResponse(req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
 
         ProblemFilter pf = new ProblemFilter();
         if (limit != null) {
@@ -558,15 +556,17 @@ public class App {
 
     @SuppressWarnings("unchecked")
     private static String getDistrictsEvaluation(Request req, Response res) {
-        JSONObject result = new JSONObject();
-        result.put("_links", new JSONObject());
-        ((JSONObject) result.get("_links")).put("self", new JSONObject());
-        ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put("href", req.uri());
-        result.put("_embedded", new JSONObject());
+        JSONObject result = new HALResponse(req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
         List<JSONObject> districts = new ArrayList<>();
         
         ProblemService problemService = ServiceFactory.getPorblemService();
-        for (Entry<String, Double[]> districtAndEvaluation: problemService.getEvaluationOfDistricts().entrySet()) {
+        Map<String, Double[]> evaluation;
+        if (req.queryParams().contains("date")) {
+            evaluation = problemService.getEvaluationOfDistricts(req.queryParams("date"));
+        } else {
+            evaluation = problemService.getEvaluationOfDistricts();
+        }
+        for (Entry<String, Double[]> districtAndEvaluation: evaluation.entrySet()) {
             Double[] tmp = districtAndEvaluation.getValue();
             JSONObject rank = new JSONObject();
             rank.put("name", districtAndEvaluation.getKey());
@@ -585,15 +585,17 @@ public class App {
 
     @SuppressWarnings("unchecked")
     private static String getMunicipalitiesEvaluation(Request req, Response res) {
-        JSONObject result = new JSONObject();
-        result.put("_links", new JSONObject());
-        ((JSONObject) result.get("_links")).put("self", new JSONObject());
-        ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put("href", req.uri());
-        result.put("_embedded", new JSONObject());
+        JSONObject result = new HALResponse(req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
         List<JSONObject> municipalities = new ArrayList<>();
         
         ProblemService problemService = ServiceFactory.getPorblemService();
-        for (Entry<String, Double[]> municipalityAndEvaluation: problemService.getEvaluationOfMunicipalities().entrySet()) {
+        Map<String, Double[]> evaluation;
+        if (req.queryParams().contains("date")) {
+            evaluation = problemService.getEvaluationOfMunicipalities(req.queryParams("date"));
+        } else {
+            evaluation = problemService.getEvaluationOfMunicipalities();
+        }
+        for (Entry<String, Double[]> municipalityAndEvaluation: evaluation.entrySet()) {
             Double[] tmp = municipalityAndEvaluation.getValue();
             JSONObject rank = new JSONObject();
             rank.put("name", municipalityAndEvaluation.getKey());
@@ -606,6 +608,17 @@ public class App {
         }
         ((JSONObject) result.get("_embedded")).put("municipalities", municipalities);
 
+        res.type("application/hal+json");
+        return result.toJSONString();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static String getProblemsMonthsCount(Request req, Response res) {
+        JSONObject result = new HALResponse(req.uri());
+        List<List> counts = ServiceFactory.getPorblemService()
+                .getProblemsMonthsCount(req.queryParams().contains("update") ? true : false)
+                .stream().map(monthAndCount -> {return List.of(monthAndCount.getKey(), monthAndCount.getValue());}).collect(Collectors.toList());
+        ((JSONObject) result.get("_embedded")).put("counts", counts);
         res.type("application/hal+json");
         return result.toJSONString();
     }
@@ -706,7 +719,7 @@ public class App {
         options.addOption(
                 new Option("W", "db_pass", true, String.format("user password for database [default: %s]", db_pass)));
         options.addOption(
-                new Option("s", "skip_evaluation", false, String.format("skip municipality and district evaluation (if already predent in database)", db_pass)));
+                new Option("s", "skip_evaluation", false, String.format("skip total municipality and district evaluation (if already present in database)", db_pass)));
 
         try {
             CommandLine cmd = new DefaultParser().parse(options, args);
@@ -802,6 +815,7 @@ public class App {
             for (String s : ExceptionUtils.getStackFrames(e)) {
                 exception.add(s);
             }
+            System.out.println(String.join("\n", exception));
             result.put("trace", exception);
             result.put("body", req.body());
             res.body(result.toJSONString());
@@ -809,8 +823,9 @@ public class App {
 
         // INFO BLOCK
 
-        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2020-12-10-quickfix</h1>"
-                + "<p>Set Accept header to include json or hal+json, and you will get api description in HAL format from this page</p>"
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2021-04-20</h1>"
+                + "<p>Set Accept header to include \"json\" or \"hal+json\", and you will get api description in HAL"
+                + " format from this page (or open <a href=/api>/api</a> page)</p>"
                 + "<ul><li><a href=/api/problems/search>Search problems API</a></li>"
                 + "<li><a href=/api/groups>Get groups API</a></li>"
                 + "<li><a href=/api/evaluation/polygon>Polygon evaluation API</a></li>"
@@ -859,5 +874,12 @@ public class App {
 
         Spark.get("/api/evaluation/objects", (req, res) -> objectsEvaluation(req, res));
         Spark.get("/api/evaluation/objects/", (req, res) -> objectsEvaluation(req, res));
+
+        // EVALUATION BY MONTH BLOCK
+
+        Spark.get("/api/evaluation/months", (req, res) -> getProblemsMonthsCount(req, res));
+        Spark.get("/api/evaluation/months/", (req, res) -> getProblemsMonthsCount(req, res));
+
+        
     }
 }

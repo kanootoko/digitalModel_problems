@@ -1,12 +1,12 @@
 import time
-from typing import Callable, Union, Optional
+from typing import Callable, Optional
 
 try:
     import psycopg2
     import argparse
     import pandas
 except ModuleNotFoundError:
-    print('Some of the modules not found. Try "python -m pip install psycopg2 argparse pandas"')
+    print('Some of the modules not found. Try executing "python -m pip install psycopg2 argparse pandas"')
     exit(1)
 
 _VERBOSE_NUMBER = 50000
@@ -19,43 +19,44 @@ def create_tables(conn_or_file):
         CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;
 
         CREATE TABLE IF NOT EXISTS Problems (
-            ID serial primary key not null,
-            OuterID int not null,
-            Name varchar not null,
-            Region varchar not null,
-            Status varchar not null,
-            CreationDate timestamp not null,
-            UpdateDate timestamp not null,
-            Description varchar not null,
-            UserName varchar not null,
-            UserID int not null,
-            Coordinates geometry not null,
-            Address varchar,
-            Municipality varchar not null,
-            Reason varchar not null,
-            Category varchar not null,
-            Subcategory varchar not null
+            id serial primary key not null,
+            outerID int not null,
+            name varchar not null,
+            district varchar not null,
+            status varchar not null,
+            creationDate timestamp not null,
+            updateDate timestamp not null,
+            description varchar not null,
+            userName varchar not null,
+            userID int not null,
+            coordinates geometry not null,
+            address varchar,
+            municipality varchar not null,
+            reason varchar not null,
+            category varchar not null,
+            subcategory varchar not null
         );
         
         CREATE TABLE evaluation_municipalities (
             municipality_name varchar primary key not null,
-            s float not null,
-            i float not null,
-            c float not null,
-            total_value float not null,
+            date varchar(7),
+            s float,
+            i float,
+            c float,
+            total_value float,
             objects_number int not null
-
         );
         
-        CREATE TABLE evaluation_regions (
-            region_name varchar primary key not null,
-            s float not null,
-            i float not null,
-            c float not null,
-            total_value float not null,
+        CREATE TABLE evaluation_districts (
+            district_name varchar primary key not null,
+            date varchar(7),
+            s float,
+            i float,
+            c float,
+            total_value float,
             objects_number int not null
-
-        );'''
+        );
+        '''
     if isinstance(conn, psycopg2.extensions.connection):
         cur = conn.cursor()
         cur.execute(creation_script)
@@ -71,8 +72,8 @@ def insert_to_db(conn: Optional[psycopg2.extensions.connection], path_to_csv: st
     else:
         log = lambda s: None
     insertion_string = \
-            'insert into Problems (OuterID, Name, Region, Status, CreationDate, UpdateDate, Description,' \
-            ' UserName, UserID, Coordinates, Address, Municipality, Reason, Category, Subcategory) values'
+            'INSERT INTO Problems (OuterID, Name, district, Status, CreationDate, UpdateDate, Description,' \
+            ' UserName, UserID, Coordinates, Address, Municipality, Reason, Category, Subcategory) VALUES'
 
     cur: Optional[psycopg2.extensions.cursor] = None
     if conn is not None:
@@ -96,9 +97,7 @@ def insert_to_db(conn: Optional[psycopg2.extensions.connection], path_to_csv: st
             ' ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)'
         )
         log('Prepared statement')
-    # else:
-        # print('BEGIN TRANSACTION;', file=file)
-        # print(insertion_string, file=file)
+
     start_time = time.time()
     loaded = 0
     try:
@@ -149,8 +148,6 @@ def insert_to_db(conn: Optional[psycopg2.extensions.connection], path_to_csv: st
                         _prepare_string(line['Муниципальное образование']), _prepare_string(line['Причина обращения']),
                         _prepare_string(line['Категория']), _prepare_string(line['Подкатегория'])
                     ), file=file, end='')
-        # if file is not None:
-        #     print(';\nEND TRANSACTION;', file=file)
     except:
         if conn is not None:
             cur.close()

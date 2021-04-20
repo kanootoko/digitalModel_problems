@@ -14,7 +14,11 @@ import org.kanootoko.problemapi.models.entities.Problem;
 
 public class Utils {
     public static Double[] evaluatePolygon(List<Problem> problems) {
-        Double[] res = new Double[4];
+        if (problems.isEmpty()) {
+            return new Double[] {null, null, null, null, 0.0};
+        }
+        Double[] res = new Double[5];
+        res[4] = (double) problems.size();
         String filename = java.util.UUID.randomUUID().toString();
         try {
             try (CSVWriter csvWriter = new CSVWriter(new FileWriter(new File(filename + ".csv")))) {
