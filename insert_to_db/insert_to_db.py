@@ -1,5 +1,5 @@
 import time
-from typing import Callable, Optional
+from typing import Callable, Optional, List
 
 try:
     import psycopg2
@@ -19,42 +19,44 @@ def create_tables(conn_or_file):
         CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;
 
         CREATE TABLE IF NOT EXISTS Problems (
-            id serial primary key not null,
-            outerID int not null,
-            name varchar not null,
-            district varchar not null,
-            status varchar not null,
-            creationDate timestamp not null,
-            updateDate timestamp not null,
-            description varchar not null,
-            userName varchar not null,
-            userID int not null,
-            coordinates geometry not null,
+            id serial PRIMARY KEY NOT NULL,
+            outerID int NOT NULL,
+            name varchar NOT NULL,
+            district varchar NOT NULL,
+            status varchar NOT NULL,
+            creationDate timestamp NOT NULL,
+            updateDate timestamp NOT NULL,
+            description varchar NOT NULL,
+            userName varchar NOT NULL,
+            userID int NOT NULL,
+            coordinates geometry NOT NULL,
             address varchar,
-            municipality varchar not null,
-            reason varchar not null,
-            category varchar not null,
-            subcategory varchar not null
+            municipality varchar NOT NULL,
+            reason varchar NOT NULL,
+            category varchar NOT NULL,
+            subcategory varchar NOT NULL
         );
         
-        CREATE TABLE evaluation_municipalities (
-            municipality_name varchar primary key not null,
-            date varchar(7),
+        CREATE TABLE IF NOT EXISTS evaluation_municipalities (
+            municipality_name varchar NOT NULL,
+            date varchar(7) NOT NULL,
             s float,
             i float,
             c float,
             total_value float,
-            objects_number int not null
+            objects_number int NOT NULL,
+            PRIMARY KEY(municipality_name, date)
         );
         
-        CREATE TABLE evaluation_districts (
-            district_name varchar primary key not null,
-            date varchar(7),
+        CREATE TABLE IF NOT EXISTS evaluation_districts (
+            district_name varchar NOT NULL,
+            date varchar(7) NOT NULL,
             s float,
             i float,
             c float,
             total_value float,
-            objects_number int not null
+            objects_number int NOT NULL,
+            PRIMARY KEY(district_name, date)
         );
         '''
     if isinstance(conn, psycopg2.extensions.connection):
@@ -72,20 +74,20 @@ def insert_to_db(conn: Optional[psycopg2.extensions.connection], path_to_csv: st
     else:
         log = lambda s: None
     insertion_string = \
-            'INSERT INTO Problems (OuterID, Name, district, Status, CreationDate, UpdateDate, Description,' \
-            ' UserName, UserID, Coordinates, Address, Municipality, Reason, Category, Subcategory) VALUES'
+            'INSERT INTO Problems (OuterID, name, district, status, creationDate, updateDate, description,' \
+            ' userName, userID, coordinates, address, municipality, reason, category, subcategory) VALUES'
 
     cur: Optional[psycopg2.extensions.cursor] = None
     if conn is not None:
         cur = conn.cursor()
     data = pandas.read_csv(path_to_csv)
-    log('Data is read')
+    log(f'Data is read - {data.shape[0]} problems')
 
     assert cur is None and min_outer_id is not None and file is not None or cur is not None and min_outer_id is None, \
         'Cursor must be valid when no min_OuterID is provided'
 
     if min_outer_id is None and cur is not None:
-        cur.execute('select max(OuterID) from problems')
+        cur.execute('SELECT max(outerID) FROM problems')
         min_outer_id = 0
         res = cur.fetchall()
         if res[0][0] is not None:
@@ -97,24 +99,30 @@ def insert_to_db(conn: Optional[psycopg2.extensions.connection], path_to_csv: st
             ' ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)'
         )
         log('Prepared statement')
+    else:
+        lines: List[str] = list()
 
     start_time = time.time()
-    loaded = 0
+    data = data[data['Внешний ID'] > min_outer_id]
+    data = data[data['Статус'].isin((
+            'Завершено: Пользователь удовлетворен решением проблемы',
+            'Завершено: Автоматически',
+            'Рассмотрение',
+            'Промежуточный ответ',
+            'Получен ответ',
+            'Принят',
+            'Завершено: Народный контролер подтвердил решение проблемы',
+            'Модерация'
+    ))]
+    for header in data.axes[1]:
+        if data[header].dtype == pandas.StringDtype:
+            data = data[data[header].apply(lambda x: not str(x).endswith('(искл.)'))]
+    data = data.reset_index()
+    log(f'{data.shape[0]} problems to insert after filtering')
     try:
         for i, line in data.iterrows():
-            if line['Внешний ID'] <= min_outer_id:
-                continue
-            if line['Статус'] not in ('Завершено: Пользователь удовлетворен решением проблемы', 'Завершено: Автоматически',
-                                      'Рассмотрение', 'Промежуточный ответ', 'Получен ответ', 'Принят',
-                                      'Завершено: Народный контролер подтвердил решение проблемы', 'Модерация'
-                                      ) \
-                or line['Муниципальное образование'].endswith('(искл.)') \
-                or line['Название'].endswith('(искл.)') \
-                or line['Причина обращения'].endswith('(искл.)'):
-                    continue
-            loaded += 1
-            if (loaded % _VERBOSE_NUMBER == 0):
-                log(f'{loaded:7} lines inserted, {i:7} processed totally, {len(data):7} total')
+            if (i % _VERBOSE_NUMBER == 0):
+                log(f'{i:<7} problems processed of {len(data):<7}')
             if file is None:
                 cur.execute(
                     'execute problem_insertion (%s, %s, %s, %s, to_timestamp(%s), to_timestamp(%s), %s, %s, %s, ST_SetSRID(ST_Point(%s, %s), 4326), %s, %s, %s, %s, %s)',
@@ -130,12 +138,11 @@ def insert_to_db(conn: Optional[psycopg2.extensions.connection], path_to_csv: st
                     )
                 )
             else:
-                if insert_size is not None and (loaded - 1) % insert_size != 0 or insert_size is None and loaded > 1:
-                    print(', ', file=file)
-                else:
-                    print(';', file=file)
-                    print(insertion_string, file=file)
-                print(
+                if insert_size is not None and i % insert_size == 0 and i > 0:
+                    print(insertion_string, file=file, end='\n\t')
+                    print(',\n\t'.join(lines), file=file, end=';\n')
+                    lines.clear()
+                lines.append(
                     "({}, '{}', '{}', '{}', to_timestamp({}), to_timestamp({}), '{}', '{}', {}, ST_SetSRID(ST_Point({}, {}), 4326), {}, '{}', '{}', '{}', '{}')".format(
                         line['Внешний ID'], _prepare_string(line['Название']),
                         _prepare_string(line['Район']), _prepare_string(line['Статус']),
@@ -147,7 +154,8 @@ def insert_to_db(conn: Optional[psycopg2.extensions.connection], path_to_csv: st
                         'null' if type(line['Адрес']) is not str else f"'{_prepare_string(line['Адрес'][19:])}'" if line['Адрес'].startswith('г.Санкт-Петербург, ') else f"'{_prepare_string(line['Адрес'])}'",
                         _prepare_string(line['Муниципальное образование']), _prepare_string(line['Причина обращения']),
                         _prepare_string(line['Категория']), _prepare_string(line['Подкатегория'])
-                    ), file=file, end='')
+                    )
+                )
     except:
         if conn is not None:
             cur.close()
@@ -155,10 +163,13 @@ def insert_to_db(conn: Optional[psycopg2.extensions.connection], path_to_csv: st
         print('Rolling back, exception occured:')
         raise
     else:
+        if file is not None and len(lines) > 0:
+            print(insertion_string, file=file, end='\n\t')
+            print(',\n\t'.join(lines), file=file, end=';\n')
         if conn is not None:
             cur.close()
             conn.commit()
-        print(f'{loaded} objects are loaded')
+        print(f'{i} problems are processed')
     finally:
         if file is None:
             cur = conn.cursor()
@@ -185,7 +196,7 @@ if __name__ == '__main__':
     parser.add_argument('-P', '--password', action='store', dest='password',
                         help='postgres user password [default: postgres]', type=str, default='postgres')
     parser.add_argument('-c', '--csv_path', action='store', dest='path_to_csv',
-                        help='full path to csv file with problems [default: problems_export_2020-05-27.csv]', type=str, default='problems_export_2020-05-27.csv')
+                        help='full path to csv file with problems [default: problems_export.csv]', type=str, default='problems_export.csv')
     parser.add_argument('-g', '--generate', action='store', dest='generate',
                         help='name of sql script to generate without inserting anything in the base', type=str, default=None)
     parser.add_argument('-m', '--min_outer_id', action='store', dest='min_outer_id',

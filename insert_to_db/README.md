@@ -19,7 +19,7 @@ It works with Postgres database and supports configuration. It is also avaliable
 
 ### Input data configuration
 
-* `-c,--csv_path <str>` - full path to csv file with problems [default: _problems_export_2020-05-27.csv_]
+* `-c,--csv_path <str>` - full path to csv file with problems [default: _problems\_export.csv_]
 
 ### Database configuration
 
