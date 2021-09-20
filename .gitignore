@@ -16,3 +16,6 @@ launch.properties
 target/
 test_api/
 problemapi/evaluation-model/libs
+
+*.xlsx
+*.~lock*

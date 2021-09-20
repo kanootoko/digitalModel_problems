@@ -17,4 +17,6 @@ public interface ProblemRepository {
     public void setEvaluationToMunicipaity(String municipalityName, String date, Double s, Double i, Double c, Double total, int objects);
     public void setEvaluationToDistrict(String districtName, String date, Double s, Double i, Double c, Double total, int objects);
     public List<Entry<String, Integer>> getProblemsMonthsCount();
+    public Map<String, Map<String, Map<Double, Integer>>> getProblemsClassifiedCount(
+            Map<String, Map<String, Map<Double, List<String>>>> problemsClassification, String service, String date, String location, String locationType);
 }

@@ -27,6 +27,7 @@ import org.kanootoko.problemapi.models.entities.Problem;
 import org.kanootoko.problemapi.services.ProblemService;
 import org.kanootoko.problemapi.utils.ConnectionManager;
 import org.kanootoko.problemapi.utils.ProblemFilter;
+import org.kanootoko.problemapi.utils.RepositoryFactory;
 import org.kanootoko.problemapi.utils.ServiceFactory;
 import org.kanootoko.problemapi.utils.Utils;
 
@@ -38,10 +39,12 @@ public class App {
 
     private static Set<String> municipalities, districts;
 
+    private static ServiceFactory serviceFactory;
+
     @SuppressWarnings("unchecked")
     private static String apiDefinition(Request req, Response res) {
         JSONObject result = new JSONObject();
-        result.put("version", "2021-04-20");
+        result.put("version", "2021-09-20");
         JSONObject links = new JSONObject();
 
         links.put("self", new JSONObject());
@@ -66,11 +69,11 @@ public class App {
         ((JSONObject) links.get("evaluation-objects")).put("templated", true);
 
         links.put("evaluation-districts", new JSONObject());
-        ((JSONObject) links.get("evaluation-districts")).put("href", "/api/evaluation/districts/{?date}");
+        ((JSONObject) links.get("evaluation-districts")).put("href", "/api/evaluation/districts/{?date,update}");
         ((JSONObject) links.get("evaluation-districts")).put("templated", true);
 
         links.put("evaluation-municipalities", new JSONObject());
-        ((JSONObject) links.get("evaluation-municipalities")).put("href", "/api/evaluation/municipalities/{?date}");
+        ((JSONObject) links.get("evaluation-municipalities")).put("href", "/api/evaluation/municipalities/{?date,update}");
         ((JSONObject) links.get("evaluation-municipalities")).put("templated", true);
 
         links.put("categories", new JSONObject());
@@ -95,6 +98,18 @@ public class App {
 
         links.put("evaluation-months-counts", new JSONObject());
         ((JSONObject) links.get("evaluation-months-counts")).put("href", "/api/evaluation/months/");
+        
+        links.put("platform-services-list", new JSONObject());
+        ((JSONObject) links.get("platform-services-list")).put("href", "/api/platform-services/list/");
+
+        links.put("platform-services-stats", new JSONObject());
+        ((JSONObject) links.get("platform-services-stats")).put("href", "/api/platform-services/stats/{?service,date}");
+        ((JSONObject) links.get("platform-services-stats")).put("templated", true);
+        
+        links.put("platform-services-evaluation", new JSONObject());
+        ((JSONObject) links.get("platform-services-evaluation")).put("href", "/api/platform-services/evaluation/{?service,date}");
+        ((JSONObject) links.get("platform-services-evaluation")).put("templated", true);
+
 
         result.put("_links", links);
         res.type("application/hal+json");
@@ -198,9 +213,9 @@ public class App {
             }
         }
 
-        ProblemService ps = ServiceFactory.getPorblemService();
+        ProblemService ps = serviceFactory.getPorblemService();
         List<Problem> problems = ps.getProblemsByFilter(pf);
-        JSONObject result = new HALResponse(req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
+        HALResponse result = new HALResponse(req.uri() + ((req.queryString() == null || req.queryString().isEmpty()) ? "" : ("?" + req.queryString())));
         result.put("size", problems.size());
         JSONArray problemsArray = new JSONArray();
         for (Problem p : problems) {
@@ -220,7 +235,7 @@ public class App {
             problemsArray.add(problem);
         }
         result.put("_embedded", new JSONObject());
-        ((JSONObject) result.get("_embedded")).put("problems", problemsArray);
+        result.embedded().put("problems", problemsArray);
         res.type("application/hal+json");
         return result.toJSONString();
     }
@@ -228,7 +243,7 @@ public class App {
     @SuppressWarnings("unchecked")
     private static String getProblem(Request req, Response res) {
         int problemID = Integer.parseInt(req.params(":problemID"));
-        ProblemService ps = ServiceFactory.getPorblemService();
+        ProblemService ps = serviceFactory.getPorblemService();
         Problem problem = ps.getProblemByID(problemID);
         JSONObject result = new JSONObject();
         result.put("_links", problem.getLinksExtended());
@@ -239,12 +254,9 @@ public class App {
 
     @SuppressWarnings("unchecked")
     private static String getGroups(Request req, Response res) {
-        ProblemService ps = ServiceFactory.getPorblemService();
-        Map<String, Integer> groups = ps.getGroupsSize(req.params(":labelName"), req.queryParamOrDefault("date", null));
-        JSONObject result = new JSONObject();
-        result.put("_links", new JSONObject());
-        ((JSONObject) result.get("_links")).put("self", new JSONObject());
-        ((JSONObject) ((JSONObject) result.get("_links")).get("self")).put("href", req.uri());
+        ProblemService ps = serviceFactory.getPorblemService();
+        Map<String, Integer> groups = ps.getGroupsSize(req.params(":labelName"), req.queryParams("date"));
+        HALResponse result = new HALResponse(req.uri());
         result.put("size", groups.size());
         JSONArray groupsArray = new JSONArray();
         for (Map.Entry<String, Integer> el : groups.entrySet()) {
@@ -253,8 +265,7 @@ public class App {
             group.put("size", el.getValue());
             groupsArray.add(group);
         }
-        result.put("_embedded", new JSONObject());
-        ((JSONObject) result.get("_embedded")).put("groups", groupsArray);
+        result.embedded().put("groups", groupsArray);
         res.type("application/hal+json");
         return result.toJSONString();
     }
@@ -328,7 +339,7 @@ public class App {
             return "{\"error\": \"Request is missing all of the minDateStr, maxDateStr and location\"}";
         }
 
-        JSONObject result = new HALResponse(req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
+        HALResponse result = new HALResponse(req.uri() + ((req.queryString() == null || req.queryString().isEmpty())  ? "" : ("?" + req.queryString())));
         boolean isCoordsPair = location != null ? location.matches("^\\d+(\\.\\d+)?,\\d+(\\.\\d+)?;\\d+(\\.\\d+)?,\\d+(\\.\\d+)?$") : false;
         if (isCoordsPair || location != null && location.startsWith("{") || minDateStr != null || maxDateStr != null) {
             ProblemFilter pf = new ProblemFilter();
@@ -369,8 +380,8 @@ public class App {
                 res.type("application/json");
                 return "{\"error\": \"maxDate is not a valid date (use format YYYY-MM-DD)\"}";
             }
-            List<Problem> problems = ServiceFactory.getPorblemService().getProblemsByFilter(pf);
-            ((JSONObject) result.get("_embedded")).put("problems_number", problems.size());
+            List<Problem> problems = serviceFactory.getPorblemService().getProblemsByFilter(pf);
+            result.embedded().put("problems_number", problems.size());
             JSONObject rank = new JSONObject();
             if (problems.size() == 0) {
                 rank.put("S", null);
@@ -384,25 +395,25 @@ public class App {
                 rank.put("C", sict[2]);
                 rank.put("total", sict[3]);
             }
-            ((JSONObject) result.get("_embedded")).put("rank", rank);
+            result.embedded().put("rank", rank);
         } else {
             Double[] tmp;
             if (districts.contains(location)) {
-                tmp = ServiceFactory.getPorblemService().getEvaluationByDistrict(location);
+                tmp = serviceFactory.getPorblemService().getEvaluationByDistrict(location);
             } else if (municipalities.contains(location)) {
-                tmp = ServiceFactory.getPorblemService().getEvaluationByMunicipality(location);
+                tmp = serviceFactory.getPorblemService().getEvaluationByMunicipality(location);
             } else {
                 res.status(400);
                 res.type("application/json");
                 return "{\"error\": \"location (" + location.replace("\"", "\\\"") + ") is not a municipality or district\"}";
             }
-            ((JSONObject) result.get("_embedded")).put("problems_number", tmp[4]);
+            result.embedded().put("problems_number", tmp[4]);
             JSONObject rank = new JSONObject();
             rank.put("S", tmp[0]);
             rank.put("I", tmp[1]);
             rank.put("C", tmp[2]);
             rank.put("total", tmp[3]);
-            ((JSONObject) result.get("_embedded")).put("rank", rank);
+            result.embedded().put("rank", rank);
         }
         res.type("application/hal+json");
         return result.toJSONString();
@@ -483,7 +494,7 @@ public class App {
             type = "everything";
         }
 
-        JSONObject result = new HALResponse(req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
+        HALResponse result = new HALResponse(req.uri() + ((req.queryString() == null || req.queryString().isEmpty())  ? "" : ("?" + req.queryString())));
 
         ProblemFilter pf = new ProblemFilter();
         if (limit != null) {
@@ -529,12 +540,12 @@ public class App {
             }
         }
         
-        List<Problem> problems = ServiceFactory.getPorblemService().getProblemsByFilter(pf);
+        List<Problem> problems = serviceFactory.getPorblemService().getProblemsByFilter(pf);
         
         JSONArray evaluations = new JSONArray();
         List<Double[]> evaluation = Utils.evaluateObjects(problems, type);
-        ((JSONObject) result.get("_embedded")).put("total_problems_number", problems.size());
-        ((JSONObject) result.get("_embedded")).put("type_problems_number", evaluation.size());
+        result.embedded().put("total_problems_number", problems.size());
+        result.embedded().put("type_problems_number", evaluation.size());
         for (Double[] sict: evaluation) {
             JSONObject rank = new JSONObject();
             {
@@ -549,22 +560,22 @@ public class App {
             rank.put("total", sict[5]);
             evaluations.add(rank);
         }
-        ((JSONObject) result.get("_embedded")).put("evaluations", evaluations);
+        result.embedded().put("evaluations", evaluations);
         res.type("application/hal+json");
         return result.toJSONString();
     }
 
     @SuppressWarnings("unchecked")
     private static String getDistrictsEvaluation(Request req, Response res) {
-        JSONObject result = new HALResponse(req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
+        HALResponse result = new HALResponse(req.uri() + ((req.queryString() == null || req.queryString().isEmpty()) ? "" : ("?" + req.queryString())));
         List<JSONObject> districts = new ArrayList<>();
         
-        ProblemService problemService = ServiceFactory.getPorblemService();
+        ProblemService problemService = serviceFactory.getPorblemService();
         Map<String, Double[]> evaluation;
         if (req.queryParams().contains("date")) {
-            evaluation = problemService.getEvaluationOfDistricts(req.queryParams("date"));
+            evaluation = problemService.getEvaluationOfDistricts(req.queryParams("date"), req.queryParams().contains("update"));
         } else {
-            evaluation = problemService.getEvaluationOfDistricts();
+            evaluation = problemService.getEvaluationOfDistricts(req.queryParams().contains("update"));
         }
         for (Entry<String, Double[]> districtAndEvaluation: evaluation.entrySet()) {
             Double[] tmp = districtAndEvaluation.getValue();
@@ -577,7 +588,7 @@ public class App {
             rank.put("problems_number", (int) (double) tmp[4]);
             districts.add(rank);
         }
-        ((JSONObject) result.get("_embedded")).put("districts", districts);
+        result.embedded().put("districts", districts);
 
         res.type("application/hal+json");
         return result.toJSONString();
@@ -585,15 +596,15 @@ public class App {
 
     @SuppressWarnings("unchecked")
     private static String getMunicipalitiesEvaluation(Request req, Response res) {
-        JSONObject result = new HALResponse(req.uri() + (req.queryString().isEmpty() ? "" : ("?" + req.queryString())));
+        HALResponse result = new HALResponse(req.uri() + ((req.queryString() == null || req.queryString().isEmpty()) ? "" : ("?" + req.queryString())));
         List<JSONObject> municipalities = new ArrayList<>();
         
-        ProblemService problemService = ServiceFactory.getPorblemService();
+        ProblemService problemService = serviceFactory.getPorblemService();
         Map<String, Double[]> evaluation;
         if (req.queryParams().contains("date")) {
-            evaluation = problemService.getEvaluationOfMunicipalities(req.queryParams("date"));
+            evaluation = problemService.getEvaluationOfMunicipalities(req.queryParams("date"), req.queryParams().contains("update"));
         } else {
-            evaluation = problemService.getEvaluationOfMunicipalities();
+            evaluation = problemService.getEvaluationOfMunicipalities(req.queryParams().contains("update"));
         }
         for (Entry<String, Double[]> municipalityAndEvaluation: evaluation.entrySet()) {
             Double[] tmp = municipalityAndEvaluation.getValue();
@@ -606,7 +617,7 @@ public class App {
             rank.put("problems_number", (int) (double) tmp[4]);
             municipalities.add(rank);
         }
-        ((JSONObject) result.get("_embedded")).put("municipalities", municipalities);
+        result.embedded().put("municipalities", municipalities);
 
         res.type("application/hal+json");
         return result.toJSONString();
@@ -614,19 +625,127 @@ public class App {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static String getProblemsMonthsCount(Request req, Response res) {
-        JSONObject result = new HALResponse(req.uri());
-        List<List> counts = ServiceFactory.getPorblemService()
+        HALResponse result = new HALResponse(req.uri());
+        List<List> counts = serviceFactory.getPorblemService()
                 .getProblemsMonthsCount(req.queryParams().contains("update") ? true : false)
                 .stream().map(monthAndCount -> {return List.of(monthAndCount.getKey(), monthAndCount.getValue());}).collect(Collectors.toList());
-        ((JSONObject) result.get("_embedded")).put("counts", counts);
+        result.embedded().put("counts", counts);
+        res.type("application/hal+json");
+        return result.toJSONString();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static String getPlatformServicesClassifiedList(Request req, Response res) {
+        HALResponse result = new HALResponse(req.uri());
+        JSONArray services = new JSONArray();
+        services.addAll(serviceFactory.getPorblemService().getServicesClassificated());
+        result.embedded().put("services", services);
+        res.type("application/hal+json");
+        return result.toJSONString();
+    }
+    
+    @SuppressWarnings("unchecked")
+    public static String getPlatformServiceStats(Request req, Response res) {
+        HALResponse result = new HALResponse(req.uri());
+        String location = req.queryParams("location");
+        try {
+            JSONObject requestBody = (JSONObject) new JSONParser().parse(req.body());
+            if (requestBody.containsKey("location")) {
+                location = (String) requestBody.get("location");
+            }
+        } catch (ParseException e) {
+        }
+        String locationType = null;
+        if (location != null) {
+            if (location.startsWith("{")) {
+                locationType = "geojson";
+            } else if (districts.contains(location)) {
+                locationType = "district";
+            } else if (municipalities.contains(location)) {
+                locationType = "municipality";
+            } else {
+                location = location + " (not found)";
+            }
+        }
+        Map<String, Map<String, Map<Double, Integer>>> counts = 
+                serviceFactory.getPorblemService().getProblemsClassifiedCount(req.queryParams("service"), req.queryParams("date"), location, locationType);
+        JSONArray services = new JSONArray();
+        counts.keySet().stream().forEach(service -> {
+            JSONObject serv = new JSONObject();
+            serv.put("service", service);
+            JSONArray subcategories = new JSONArray();
+            counts.get(service).keySet().stream().forEach(subcategory -> {
+                JSONObject subcat = new JSONObject();
+                subcat.put("subcategory", subcategory);
+                counts.get(service).get(subcategory).keySet().stream().forEach(criticality -> {
+                    subcat.put(criticality, counts.get(service).get(subcategory).get(criticality));
+                });
+                subcategories.add(subcat);
+            });
+            serv.put("subcategories", subcategories);
+            services.add(serv);
+        });
+        result.addEmbedded("services", services);
+        JSONObject parameters = new JSONObject();
+        parameters.put("location", location);
+        parameters.put("service", req.queryParams("service"));
+        parameters.put("date", req.queryParams("date"));
+        result.addEmbedded("parameters", parameters);
+        res.type("application/hal+json");
+        return result.toJSONString();
+    }
+    
+    @SuppressWarnings("unchecked")
+    public static String getPlatformServiceEvaluation(Request req, Response res) {
+        HALResponse result = new HALResponse(req.uri());
+        String location = req.queryParams("location");
+        try {
+            JSONObject requestBody = (JSONObject) new JSONParser().parse(req.body());
+            if (requestBody.containsKey("location")) {
+                location = (String) requestBody.get("location");
+            }
+        } catch (ParseException e) {
+        }
+        String locationType = null;
+        if (location != null) {
+            if (location.startsWith("{")) {
+                locationType = "geojson";
+            } else if (districts.contains(location)) {
+                locationType = "district";
+            } else if (municipalities.contains(location)) {
+                locationType = "municipality";
+            } else {
+                location = location + " (not found)";
+            }
+        }
+        Map<String, Map<String, Object>> counts = 
+                serviceFactory.getPorblemService().getProblemsClassifiedEvaluation(
+                        req.queryParams("service"), req.queryParams("date"), location, locationType);
+        JSONArray services = new JSONArray();
+        counts.keySet().stream().forEach(service -> {
+            JSONObject serv = new JSONObject();
+            serv.put("service", service);
+            serv.put("evaluation", counts.get(service).get("evaluation"));
+            serv.put("problems_number", counts.get(service).get("problems_number"));
+            serv.put("problems_number_raw", counts.get(service).get("problems_number_raw"));
+            serv.put("number_of_services", counts.get(service).get("number_of_services"));
+            services.add(serv);
+        });
+        result.addEmbedded("services", services);
+        JSONObject parameters = new JSONObject();
+        parameters.put("location", location);
+        parameters.put("service", req.queryParams("service"));
+        parameters.put("date", req.queryParams("date"));
+        result.addEmbedded("parameters", parameters);
         res.type("application/hal+json");
         return result.toJSONString();
     }
 
     @SuppressWarnings("unchecked")
     public static void main(String[] args) {
-        int api_port = 80, db_port = 5432;
-        String db_addr = "localhost", db_name = "problems", db_user = "postgres", db_pass = "postgres";
+        int api_port = 80, problems_db_port = 5432, houses_db_port = 5432;
+        String problems_db_addr = "127.0.0.1", problems_db_name = "problems", problems_db_user = "postgres", problems_db_pass = "postgres";
+        String houses_db_addr = "127.0.0.1", houses_db_name = "citydb", houses_db_user = "postgres", houses_db_pass = "postgres";
         boolean skip_evaluation = false;
 
         // Getting properties from launch.properties
@@ -634,17 +753,29 @@ public class App {
         try (FileInputStream fis = new FileInputStream("launch.properties")) {
             Properties props = new Properties();
             props.load(fis);
-            if (props.containsKey("db_addr")) {
-                db_addr = props.getProperty("db_addr");
+            if (props.containsKey("problems_db_addr")) {
+                problems_db_addr = props.getProperty("problems_db_addr");
             }
-            if (props.containsKey("db_name")) {
-                db_name = props.getProperty("db_name");
+            if (props.containsKey("problems_db_name")) {
+                problems_db_name = props.getProperty("problems_db_name");
             }
-            if (props.containsKey("db_user")) {
-                db_user = props.getProperty("db_user");
+            if (props.containsKey("problems_db_user")) {
+                problems_db_user = props.getProperty("problems_db_user");
             }
-            if (props.containsKey("db_pass")) {
-                db_pass = props.getProperty("db_pass");
+            if (props.containsKey("problems_db_pass")) {
+                problems_db_pass = props.getProperty("problems_db_pass");
+            }
+            if (props.containsKey("houses_db_addr")) {
+                houses_db_addr = props.getProperty("houses_db_addr");
+            }
+            if (props.containsKey("houses_db_name")) {
+                houses_db_name = props.getProperty("houses_db_name");
+            }
+            if (props.containsKey("houses_db_user")) {
+                houses_db_user = props.getProperty("houses_db_user");
+            }
+            if (props.containsKey("houses_db_pass")) {
+                houses_db_pass = props.getProperty("houses_db_pass");
             }
             if (props.containsKey("api_port")) {
                 try {
@@ -653,11 +784,18 @@ public class App {
                     System.err.println("api_port value (" + props.getProperty("api_port") + ") is not an integer, ignoring");
                 }
             }
-            if (props.containsKey("db_port")) {
+            if (props.containsKey("problems_db_port")) {
                 try {
-                    db_port = Integer.parseInt(props.getProperty("db_port"));
+                    problems_db_port = Integer.parseInt(props.getProperty("problems_db_port"));
                 } catch (NumberFormatException ex) {
-                    System.err.println("db_port value (" + props.getProperty("db_port") + ") is not an integer, ignoring");
+                    System.err.println("db_port value (" + props.getProperty("problems_db_port") + ") is not an integer, ignoring");
+                }
+            }
+            if (props.containsKey("houses_db_port")) {
+                try {
+                    houses_db_port = Integer.parseInt(props.getProperty("houses_db_port"));
+                } catch (NumberFormatException ex) {
+                    System.err.println("db_port value (" + props.getProperty("houses_db_port") + ") is not an integer, ignoring");
                 }
             }
             if (props.containsKey("skip_evaluation") && !props.getProperty("skip_evaluation").equals("false") && !props.getProperty("skip_evaluation").equals("0")) {
@@ -681,25 +819,46 @@ public class App {
         }
         if (env.containsKey("PROBLEMS_DB_PORT")) {
             try {
-                db_port = Integer.parseInt(env.get("PROBLEMS_DB_PORT"));
+                problems_db_port = Integer.parseInt(env.get("PROBLEMS_DB_PORT"));
             } catch (Exception ex) {
                 System.err.println("Port number specified in environment variable 'PROBLEMS_DB_PORT' ("
                     + env.get("PROBLEMS_DB_PORT") + ") is not an integer, ignoring");
             }
         }
         if (env.containsKey("PROBLEMS_DB_ADDR")) {
-            db_addr = env.get("PROBLEMS_DB_ADDR");
+            problems_db_addr = env.get("PROBLEMS_DB_ADDR");
         }
         if (env.containsKey("PROBLEMS_DB_NAME")) {
-            db_name = env.get("PROBLEMS_DB_NAME");
+            problems_db_name = env.get("PROBLEMS_DB_NAME");
         }
         if (env.containsKey("PROBLEMS_DB_USER")) {
-            db_user = env.get("PROBLEMS_DB_USER");
+            problems_db_user = env.get("PROBLEMS_DB_USER");
         }
         if (env.containsKey("PROBLEMS_DB_PASS")) {
-            db_pass = env.get("PROBLEMS_DB_PASS");
+            problems_db_pass = env.get("PROBLEMS_DB_PASS");
         }
-        if (env.containsKey("PROBLEMS_SKIP_EVALUATION")) {
+        if (env.containsKey("HOUSES_DB_PORT")) {
+            try {
+                houses_db_port = Integer.parseInt(env.get("HOUSES_DB_PORT"));
+            } catch (Exception ex) {
+                System.err.println("Port number specified in environment variable 'HOUSES_DB_PORT' ("
+                    + env.get("HOUSES_DB_PORT") + ") is not an integer, ignoring");
+            }
+        }
+        if (env.containsKey("HOUSES_DB_ADDR")) {
+            houses_db_addr = env.get("PROBLEMS_DB_ADDR");
+        }
+        if (env.containsKey("HOUSES_DB_NAME")) {
+            houses_db_name = env.get("PROBLEMS_DB_NAME");
+        }
+        if (env.containsKey("HOUSES_DB_USER")) {
+            houses_db_user = env.get("PROBLEMS_DB_USER");
+        }
+        if (env.containsKey("HOUSES_DB_PASS")) {
+            houses_db_pass = env.get("PROBLEMS_DB_PASS");
+        }
+        if (env.containsKey("PROBLEMS_SKIP_EVALUATION") && !env.get("PROBLEMS_SKIP_EVALUATION").equals("0") &&
+                !env.get("PROBLEMS_SKIP_EVALUATION").equalsIgnoreCase("false")) {
             skip_evaluation = true;
         }
 
@@ -708,38 +867,63 @@ public class App {
         Options options = new Options();
         options.addOption(
                 new Option("p", "port", true, String.format("port to run the server [default: %d]", api_port)));
-        options.addOption(new Option("H", "db_addr", true,
-                String.format("address of the postgres with problems [default: %s]", db_addr)));
-        options.addOption(new Option("P", "db_port", true,
-                String.format("port of the postgres with problems [default: %s]", db_port)));
-        options.addOption(new Option("N", "db_name", true,
-                String.format("name of the postgres database with problems [default: %s]", db_name)));
+        options.addOption(new Option("pH", "problems_db_addr", true,
+                String.format("address of the postgres with problems [default: %s]", problems_db_addr)));
+        options.addOption(new Option("pP", "problems_db_port", true,
+                String.format("port of the postgres with problems [default: %s]", problems_db_port)));
+        options.addOption(new Option("pN", "problems_db_name", true,
+                String.format("name of the postgres database with problems [default: %s]", problems_db_name)));
         options.addOption(
-                new Option("U", "db_user", true, String.format("user name for database [default: %s]", db_user)));
+                new Option("pU", "problems_db_user", true, String.format("user name for database [default: %s]", problems_db_user)));
         options.addOption(
-                new Option("W", "db_pass", true, String.format("user password for database [default: %s]", db_pass)));
+                new Option("pW", "problems_db_pass", true, String.format("user password for database [default: %s]", problems_db_pass)));
+        options.addOption(new Option("hH", "houses_db_addr", true,
+                String.format("address of the postgres with houses [default: %s]", houses_db_addr)));
+        options.addOption(new Option("hP", "houses_db_port", true,
+                String.format("port of the postgres with houses [default: %s]", houses_db_port)));
+        options.addOption(new Option("hN", "houses_db_name", true,
+                String.format("name of the postgres database with houses [default: %s]", houses_db_name)));
         options.addOption(
-                new Option("s", "skip_evaluation", false, String.format("skip total municipality and district evaluation (if already present in database)", db_pass)));
+                new Option("hU", "houses_db_user", true, String.format("user name for database [default: %s]", houses_db_user)));
+        options.addOption(
+                new Option("hW", "houses_db_pass", true, String.format("user password for database [default: %s]", houses_db_pass)));
+        options.addOption(
+                new Option("s", "skip_evaluation", false, "skip total municipality and district evaluation (if already present in database)"));
 
         try {
             CommandLine cmd = new DefaultParser().parse(options, args);
             if (cmd.hasOption("port")) {
                 api_port = Integer.parseInt(cmd.getOptionValue("port"));
             }
-            if (cmd.hasOption("db_addr")) {
-                db_addr = cmd.getOptionValue("db_addr");
+            if (cmd.hasOption("problems_db_addr")) {
+                problems_db_addr = cmd.getOptionValue("problems_db_addr");
             }
-            if (cmd.hasOption("db_port")) {
-                db_port = Integer.parseInt(cmd.getOptionValue("db_port"));
+            if (cmd.hasOption("problems_db_port")) {
+                problems_db_port = Integer.parseInt(cmd.getOptionValue("problems_db_port"));
             }
-            if (cmd.hasOption("db_name")) {
-                db_name = cmd.getOptionValue("db_name");
+            if (cmd.hasOption("problems_db_name")) {
+                problems_db_name = cmd.getOptionValue("problems_db_name");
             }
-            if (cmd.hasOption("db_user")) {
-                db_user = cmd.getOptionValue("db_user");
+            if (cmd.hasOption("problems_db_user")) {
+                problems_db_user = cmd.getOptionValue("problems_db_user");
             }
-            if (cmd.hasOption("db_pass")) {
-                db_pass = cmd.getOptionValue("db_pass");
+            if (cmd.hasOption("problems_db_pass")) {
+                problems_db_pass = cmd.getOptionValue("problems_db_pass");
+            }
+            if (cmd.hasOption("houses_db_addr")) {
+                houses_db_addr = cmd.getOptionValue("houses_db_addr");
+            }
+            if (cmd.hasOption("houses_db_port")) {
+                houses_db_port = Integer.parseInt(cmd.getOptionValue("houses_db_port"));
+            }
+            if (cmd.hasOption("houses_db_name")) {
+                houses_db_name = cmd.getOptionValue("houses_db_name");
+            }
+            if (cmd.hasOption("houses_db_user")) {
+                houses_db_user = cmd.getOptionValue("houses_db_user");
+            }
+            if (cmd.hasOption("houses_db_pass")) {
+                houses_db_pass = cmd.getOptionValue("houses_db_pass");
             }
             if (cmd.hasOption("skip_evaluation")) {
                 skip_evaluation = true;
@@ -752,14 +936,13 @@ public class App {
 
         // Setting properties
 
-        ConnectionManager.setDB_addr(db_addr);
-        ConnectionManager.setDB_name(db_name);
-        ConnectionManager.setDB_port(db_port);
-        ConnectionManager.setDB_user(db_user);
-        ConnectionManager.setDB_pass(db_pass);
+        ConnectionManager problemsDB = new ConnectionManager(problems_db_addr, problems_db_port, problems_db_name, problems_db_user, problems_db_pass);
+        ConnectionManager housesDB = new ConnectionManager(houses_db_addr, houses_db_port, houses_db_name, houses_db_user, houses_db_pass);
+        serviceFactory = new ServiceFactory(new RepositoryFactory(housesDB, problemsDB));
+        
 
         if (!skip_evaluation) {
-            ProblemService problemService = ServiceFactory.getPorblemService();
+            ProblemService problemService = serviceFactory.getPorblemService();
             System.out.println("Evaluating municipalities:");
             problemService.evaluateMunicipalities();
             System.out.println("Evaluating districts:");
@@ -770,7 +953,7 @@ public class App {
         }
 
         {
-            ProblemService problemService = ServiceFactory.getPorblemService();
+            ProblemService problemService = serviceFactory.getPorblemService();
             municipalities = problemService.getGroupsSize("municipality").keySet();
             districts = problemService.getGroupsSize("district").keySet();
         }
@@ -823,7 +1006,7 @@ public class App {
 
         // INFO BLOCK
 
-        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2021-04-20</h1>"
+        Spark.get("/", "text/html", (req, res) -> "<html><body><h1>Problems API version 2021-09-20</h1>"
                 + "<p>Set Accept header to include \"json\" or \"hal+json\", and you will get api description in HAL"
                 + " format from this page (or open <a href=/api>/api</a> page)</p>"
                 + "<ul><li><a href=/api/problems/search>Search problems API</a></li>"
@@ -850,8 +1033,8 @@ public class App {
 
         // PROBLEMS BLOCK
 
-        Spark.get("/api/problems/search", (req, res) -> searchProblems(req, res));
-        Spark.get("/api/problems/search/", (req, res) -> searchProblems(req, res));
+        Spark.get("/api/problems/search", (req, res) -> searchProblems(req, res) );
+        Spark.get("/api/problems/search/",  (req, res) -> searchProblems(req, res));
 
         Spark.get("/api/problems/:problemID", (req, res) -> getProblem(req, res));
         Spark.get("/api/problems/:problemID/", (req, res) -> getProblem(req, res));
@@ -880,6 +1063,16 @@ public class App {
         Spark.get("/api/evaluation/months", (req, res) -> getProblemsMonthsCount(req, res));
         Spark.get("/api/evaluation/months/", (req, res) -> getProblemsMonthsCount(req, res));
 
+        // PLATFORM OBJECTS EVALUATION BLOCK
+        
+        Spark.get("/api/platform-services/list", (req, res) -> getPlatformServicesClassifiedList(req, res));
+        Spark.get("/api/platform-services/list/", (req, res) -> getPlatformServicesClassifiedList(req, res));
+        
+        Spark.get("/api/platform-services/stats", (req, res) -> getPlatformServiceStats(req, res));
+        Spark.get("/api/platform-services/stats/", (req, res) -> getPlatformServiceStats(req, res));
+        
+        Spark.get("/api/platform-services/evaluation", (req, res) -> getPlatformServiceEvaluation(req, res));
+        Spark.get("/api/platform-services/evaluation/", (req, res) -> getPlatformServiceEvaluation(req, res));
         
     }
 }

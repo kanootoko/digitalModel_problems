@@ -5,5 +5,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y r-base=3.5.2-1 
 # libopenblas-base zlib1g-dev gcc-8-base libssl-dev libcurl4-openssl-dev
 RUN R CMD INSTALL /tmp/libs/*.tar.gz && rm -rf /tmp/libs/
 COPY ./evaluation-model/*.R /
-COPY ./target/problemapi-2021-04-20-jar-with-dependencies.jar /app.jar
+COPY ./target/problemapi-2021-09-20-jar-with-dependencies.jar /app.jar
+COPY ./services_coeffs.json /
+COPY ./services_evaluation_coeffs.json /
 ENTRYPOINT [ "java",  "-jar", "/app.jar" ]

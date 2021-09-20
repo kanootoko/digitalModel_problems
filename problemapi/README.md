@@ -13,7 +13,7 @@ This is API server for getting probelms from postgres database based on data fro
 5. compile with `mvn compile assembly:single`
 6. install R and libraries (`tidyverse`, `readr`) (look at **R installation** section in case of problems)
 7. copy or symlink R scripts to the directory of launching (`cp evaluation-model/*.R .`)
-8. launch with `java -jar target/problemapi-2021-04-20-jar-with-dependencies.jar`
+8. launch with `java -jar target/problemapi-2021-09-20-jar-with-dependencies.jar`
 
 ## R installation
 
@@ -68,14 +68,14 @@ Command line arguments configuration is also avaliable (overrides environment va
 * `-W,--db_pass <str>` - db_pass
 * `-S,--skip_evaluation` - skip_evaluation
 
-## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2021-04-20)
+## Building Docker image (the other way is to use Docker repository: kanootoko/digitalmodel_problems:2021-09-20)
 
 1. open terminal in cloned repository
 2. build application with `mvn compile assembly:single`
-3. build Docker image with `docker build --tag kanootoko/digitalmodel_problems:2021-04-20 .`
+3. build Docker image with `docker build --tag kanootoko/digitalmodel_problems:2021-09-20 .`
 4. run image with postgres server running on host machine on default port 5432
-    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2021-04-20`
-    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2021-04-20`  
+    1. For windows: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=host.docker.internal --name problems_api kanootoko/digitalmodel_problems:2021-09-20`
+    2. For Linux: `docker run --publish 8080:8080 -e PROBLEMS_API_PORT=8080 -e PROBLEMS_DB_ADDR=$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d "/" -f 1) --name problems_api kanootoko/digitalmodel_problems:2021-09-20`  
        Ensure that:
         1. _/etc/postgresql/12/main/postgresql.conf_ contains uncommented setting `listen_addresses = '*'` so app could access postgres from Docker network
         2. _/etc/postgresql/12/main/pg_hba.conf_ contains `host all all 0.0.0.0/0 md5` so login could be performed from anywhere (you can set docker container address instead of 0.0.0.0)

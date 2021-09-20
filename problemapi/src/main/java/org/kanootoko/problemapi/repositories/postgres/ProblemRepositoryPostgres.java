@@ -8,8 +8,10 @@ import java.sql.Types;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Map.Entry;
 
 import org.kanootoko.problemapi.models.Coordinates;
@@ -20,15 +22,21 @@ import org.kanootoko.problemapi.utils.ProblemFilter;
 
 public class ProblemRepositoryPostgres implements ProblemRepository {
 
+    ConnectionManager connectionManager;
+
+    public ProblemRepositoryPostgres(ConnectionManager connectionManager) {
+        this.connectionManager = connectionManager;
+    }
+
     @Override
     public List<Problem> findProblemsByFilter(ProblemFilter pf) {
         List<Problem> problems = new ArrayList<>();
-        Connection conn = ConnectionManager.getConnection();
+        Connection conn = connectionManager.getConnection();
         PreparedStatement statement;
         try {
             statement = conn.prepareStatement(
-                    "select ID, OuterID, Name, District, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_Y(Coordinates),"
-                            + " ST_X(Coordinates), Address, Municipality, Reason, Category, Subcategory from problems"
+                    "SELECT ID, OuterID, Name, District, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_Y(Coordinates),"
+                            + " ST_X(Coordinates), Address, Municipality, Reason, Category, Subcategory FROM problems"
                             + pf.buildWhereString());
             pf.addParameters(statement);
             try {
@@ -55,7 +63,7 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
     @Override
     public Map<String, Integer> getGroupsSize(String labelName, String date) {
         Map<String, Integer> res = new HashMap<>();
-        Connection conn = ConnectionManager.getConnection();
+        Connection conn = connectionManager.getConnection();
         ResultSet rs = null;
         try {
             if (date == null) {
@@ -87,7 +95,7 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
 
     @Override
     public Problem findProblemByID(int problemID) {
-        Connection conn = ConnectionManager.getConnection();
+        Connection conn = connectionManager.getConnection();
         try (ResultSet rs = conn.createStatement().executeQuery(
                 "SELECT ID, OuterID, Name, District, Status, CreationDate, UpdateDate, Description, UserName, UserID, ST_Y(Coordinates),"
                         + " ST_X(Coordinates), Address, Municipality, Reason, Category, Subcategory FROM problems WHERE id = "
@@ -107,11 +115,13 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
 
     @Override
     public Double[] getEvaluationByMunicipality(String municipalityName, String date) {
-        Connection conn = ConnectionManager.getConnection();
+        if (date == null) {
+            date = "0";
+        }
+        Connection conn = connectionManager.getConnection();
         try {
             PreparedStatement statement = conn.prepareStatement(
-                    "SELECT s, i, c, total_value, objects_number FROM evaluation_municipalities WHERE municipality_name = ? AND date "
-                    + (date == null ? "is ?" : "= ?"));
+                    "SELECT s, i, c, total_value, objects_number FROM evaluation_municipalities WHERE municipality_name = ? AND date = ?");
             statement.setString(1, municipalityName);
             statement.setString(2, date);
             try (ResultSet rs = statement.executeQuery()) {
@@ -126,7 +136,7 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
                     sictn[4] = (double) rs.getInt(5);
                     return sictn;
                 } else {
-                    return new Double[] {null, null, null, null};
+                    return new Double[] {null, null, null, null, null};
                 }
             }
         } catch (Exception e) {
@@ -136,11 +146,13 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
 
     @Override
     public Double[] getEvaluationByDistrict(String districtName, String date) {
-        Connection conn = ConnectionManager.getConnection();
+        if (date == null) {
+            date = "0";
+        }
+        Connection conn = connectionManager.getConnection();
         try {
             PreparedStatement statement = conn.prepareStatement(
-                    "SELECT s, i, c, total_value, objects_number FROM evaluation_districts WHERE district_name = ? AND date "
-                    + (date == null ? "is ?" : "= ?"));
+                    "SELECT s, i, c, total_value, objects_number FROM evaluation_districts WHERE district_name = ? AND date = ?");
             statement.setString(1, districtName);
             statement.setString(2, date);
             try (ResultSet rs = statement.executeQuery()) {
@@ -165,11 +177,14 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
 
     @Override
     public void setEvaluationToMunicipaity(String municipalityName, String date, Double s, Double i, Double c, Double total, int objects) {
-        Connection conn = ConnectionManager.getConnection();
+        if (date == null) {
+            date = "0";
+        }
+        Connection conn = connectionManager.getConnection();
         try {
             PreparedStatement statement = conn.prepareStatement(
                     "INSERT INTO evaluation_municipalities (municipality_name, date, s, i, c, total_value, objects_number) values"
-                            + " (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (municipality_name) DO UPDATE SET s = excluded.s,"
+                            + " (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (municipality_name, date) DO UPDATE SET s = excluded.s,"
                             + " i = excluded.i, c = excluded.c, total_value = excluded.total_value, objects_number = excluded.objects_number");
             statement.setString(1, municipalityName);
             statement.setString(2, date);
@@ -202,11 +217,14 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
 
     @Override
     public void setEvaluationToDistrict(String districtName, String date, Double s, Double i, Double c, Double total, int objects) {
-        Connection conn = ConnectionManager.getConnection();
+        if (date == null) {
+            date = "0";
+        }
+        Connection conn = connectionManager.getConnection();
         try {
             PreparedStatement statement = conn.prepareStatement(
                     "INSERT INTO evaluation_districts (district_name, date, s, i, c, total_value, objects_number) VALUES"
-                            + " (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (district_name) DO UPDATE SET s = excluded.s,"
+                            + " (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (district_name, date) DO UPDATE SET s = excluded.s,"
                             + " i = excluded.i, c = excluded.c, total_value = excluded.total_value, objects_number = excluded.objects_number");
             statement.setString(1, districtName);
             statement.setString(2, date);
@@ -239,14 +257,82 @@ public class ProblemRepositoryPostgres implements ProblemRepository {
 
     @Override
     public List<Entry<String, Integer>> getProblemsMonthsCount() {
-        Connection conn = ConnectionManager.getConnection();
+        Connection conn = connectionManager.getConnection();
         List<Entry<String, Integer>> result = new ArrayList<>();
-        try (ResultSet rs = conn.createStatement().executeQuery("SELECT to_char(creationdate, 'YYYY-MM'), count(*) FROM problems GROUP BY 1 ORDER BY 1")) {
+        try (ResultSet rs = conn.createStatement().executeQuery(
+                    "SELECT to_char(creationdate, 'YYYY-MM'), count(*) FROM problems GROUP BY 1 ORDER BY 1")) {
             while (rs.next()) {
                 result.add(new SimpleEntry<String, Integer>(rs.getString(1), rs.getInt(2)));
             }
         } catch (SQLException e) {
             throw new RuntimeException(e);
+        }
+        return result;
+    }
+    
+    @Override
+    public Map<String, Map<String, Map<Double, Integer>>> getProblemsClassifiedCount(
+            Map<String, Map<String, Map<Double, List<String>>>> problemsClassification, String service, String date, String location, String locationType) {
+        Map<String, Map<String, Map<Double, Integer>>> result = new HashMap<>();
+        Connection conn = connectionManager.getConnection();
+        Set<String> services;
+        if (service != null) {
+            services = new HashSet<>();
+            if (problemsClassification.containsKey(service)) {
+                services.add(service);
+            }
+        } else {
+            services = problemsClassification.keySet();
+        }
+        for (String serv: services) {
+            Map<String, Map<Double, List<String>>> subcategories = problemsClassification.get(serv);
+            result.put(serv, new HashMap<>());
+            for (String subcategory: subcategories.keySet()) {
+                Map<Double, List<String>> criticalities = subcategories.get(subcategory);
+                result.get(serv).put(subcategory, new HashMap<>());
+                for (Double criticality: criticalities.keySet()) {
+                    StringBuilder sb = new StringBuilder("SELECT count(*) FROM problems WHERE subcategory = ?");
+                    if (date != null) {
+                        sb.append(" AND creationdate >= ?::timestamp AND creationdate < ?::timestamp + '1 month'::interval");
+                    }
+                    sb.append(" AND name IN (");
+                    String tmp = "?, ".repeat(criticalities.get(criticality).size());
+                    tmp = tmp.substring(0, tmp.length() - 2);
+                    sb.append(tmp);
+                    sb.append(")");
+                    if (locationType != null) {
+                        if (locationType.toLowerCase().equals("geojson")){
+                            sb.append(" AND ST_Within(coordinates, ST_SetSRID(ST_GeomFromGeoJSON(?), 4326))");
+                        } else if (locationType.toLowerCase().equals("district")) {
+                            sb.append(" AND district = ?");
+                        } else if (locationType.toLowerCase().equals("municipality")) {
+                            sb.append(" AND municipality = ?");
+                        }
+                    }
+                    try {
+                        PreparedStatement ps = conn.prepareStatement(sb.toString());
+                        ps.setString(1, subcategory);
+                        int cur = 2;
+                        if (date != null) {
+                            ps.setString(cur++, date + "-01");
+                            ps.setString(cur++, date + "-01");
+                        }
+                        for (String name: criticalities.get(criticality)) {
+                            ps.setString(cur++, name);
+                        }
+                        if (locationType != null) {
+                            ps.setString(cur++, location);
+                        }
+                        try (ResultSet rs = ps.executeQuery()) {
+                            rs.next();
+                            result.get(serv).get(subcategory).put(criticality, rs.getInt(1));
+                        }                     
+                    } catch (SQLException e) {
+                        e.printStackTrace();
+                        throw new RuntimeException();
+                    }
+                }
+            }
         }
         return result;
     }
